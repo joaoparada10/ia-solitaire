@@ -18,6 +18,7 @@ BUTTON_HOVER_COLOR = (100, 149, 237)
 TEXT_COLOR = (255, 255, 255)
 DOUBLE_CLICK_THRESHOLD = 400  # milliseconds
 SCORE_INCREMENT = 50
+DIFFICULTY = 13 # Hardest 
 
 # Screen and fonts
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -100,7 +101,7 @@ def deal_cards(deck):
             card.rect.y = TABLEAU_Y + card_index * 30
     return tableau
 
-def draw_table(screen, tableau, foundations, remaining_time, score):
+def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
     screen.fill(BACKGROUND_COLOR)
 
     for i, col in enumerate(tableau):
@@ -129,6 +130,17 @@ def draw_table(screen, tableau, foundations, remaining_time, score):
     screen.blit(time_text, (20, 20))
     screen.blit(score_text, (20, 50))
 
+    return_to_menu_button_rect = pygame.Rect(20, HEIGHT - 50, 170, 40)  # (x, y, width, height)
+    pygame.draw.rect(screen, BUTTON_COLOR, return_to_menu_button_rect)
+    return_to_menu_text = font.render("Return to Menu", True, TEXT_COLOR)
+    screen.blit(return_to_menu_text, (25, HEIGHT - 45))  # Adjust text position for alignment
+
+    # Draw the undo button
+    undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
+    pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
+    undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
+    screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
+    
     pygame.display.flip()
 
 def is_valid_move(card, target_col):
@@ -394,7 +406,6 @@ def game_loop():
     last_clicked_card = None
 
     # Define the "Return to Menu" button (bottom-left corner)
-    return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)  # (x, y, width, height)
 
     while running:
         # Calculate remaining time
@@ -442,6 +453,7 @@ def game_loop():
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 # Check if the "Return to Menu" button is clicked
+                return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)
                 if return_to_menu_button.collidepoint(event.pos):
                     running = False
                     main_menu()
@@ -554,20 +566,13 @@ def game_loop():
                     source_col = None
 
         # Draw the table, foundations, elapsed time, and score
-        draw_table(screen, tableau, foundations, remaining_time, score)
+        draw_table(screen, tableau, foundations, remaining_time, score, undo_count)
 
         # Draw the "Return to Menu" button (bottom-left corner)
-        pygame.draw.rect(screen, BUTTON_COLOR, return_to_menu_button)
-        return_to_menu_text = font.render("Return to Menu", True, TEXT_COLOR)
-        screen.blit(return_to_menu_text, (25, HEIGHT - 45))  # Adjust text position for alignment
-
-        # Draw the undo button
-        undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
-        pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
-        undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
-        screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
+        
 
         pygame.display.flip()
         clock.tick(60)
 
 main_menu()
+
