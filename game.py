@@ -1,49 +1,22 @@
 import pygame
-import random
 import sys
+import random
+import copy
+from constants import *
+from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move
+from dfs_solver import dfs, SolitaireState
+import threading
+dfs_cancel_event = threading.Event()
 
-# Initialize Pygame
-pygame.init()
-
-# Constants
-WIDTH, HEIGHT = 1600, 800
-CARD_WIDTH, CARD_HEIGHT = 80, 120 # (0,0) é o canto inferior esquerdo da carta
-SPACING_X, SPACING_Y = 100, 30
-FOUNDATION_Y = 20
-TABLEAU_Y = 180
-BACKGROUND_COLOR = (34, 139, 34)  # Green table
-CARD_COLOR = (255,255,255)
-BUTTON_COLOR = (70, 130, 180)
-BUTTON_HOVER_COLOR = (100, 149, 237)
-TEXT_COLOR = (255, 255, 255)
-DOUBLE_CLICK_THRESHOLD = 400  # milliseconds
-SCORE_INCREMENT = 50
-DIFFICULTY = 13 # Hardest 
-
-# Screen and fonts
+pygame.font.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Baker's Dozen Solitaire")
 font = pygame.font.SysFont("Arial", 24)
 small_font = pygame.font.SysFont("Arial", 18)
 
-# Load card images
-CARD_IMAGES = {}
-SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
-RANKS = ['ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
-RANK_VALUES = {rank: i for i, rank in enumerate(RANKS)}
+CARD_IMAGES = load_card_images()
 
-# TODO Meter isto em função
-
-for suit in SUITS:
-    for rank in RANKS:
-        filename = f"png/{rank}_of_{suit}.png"
-        CARD_IMAGES[(rank, suit)] = pygame.transform.scale(
-            pygame.image.load(filename), (CARD_WIDTH, CARD_HEIGHT)
-        )
-
-# TODO Fazer Class Board
-
-# Card Class
+# --- Card Class ---
 class Card:
     def __init__(self, rank, suit, x, y):
         self.rank = rank
@@ -54,67 +27,77 @@ class Card:
         self.offset_x = 0
         self.offset_y = 0
 
+    def __deepcopy__(self, memo):
+        # Create a new Card without deep copying the image.
+        new_card = type(self)(self.rank, self.suit, self.rect.x, self.rect.y)
+        new_card.selected = self.selected
+        new_card.offset_x = self.offset_x
+        new_card.offset_y = self.offset_y
+        new_card.rect = self.rect.copy()  # Create a copy of the rect.
+        # Instead of copying the image, simply assign the reference.
+        new_card.image = self.image
+        memo[id(self)] = new_card
+        return new_card
+
+
     def draw(self, screen):
         pygame.draw.rect(screen, CARD_COLOR, self.rect)
         screen.blit(self.image, (self.rect.x, self.rect.y))
 
-def create_deck():
-    deck = [Card(rank, suit, 0, 0) for suit in SUITS for rank in RANKS]
-    random.shuffle(deck)
-    return deck
+# --- Deck and Dealing ---
+def create_deck(difficulty=13):
+    return [Card(rank, suit, 0, 0) for suit in SUITS for rank in RANKS[:difficulty]]
 
-def deal_cards(deck):
-    tableau = [[] for _ in range(13)]
-    
-    # Separate Kings from the rest of the deck
-    kings = [card for card in deck if card.rank == 'king']
-    non_kings = [card for card in deck if card.rank != 'king']
-
-    # Shuffle non-King cards
-    random.shuffle(non_kings)
-
-    # Randomly select 4 piles to place Kings at the bottom
-    king_piles = random.sample(range(13), 4)  # Randomly choose 4 piles out of 13
-
-    # Add one King to the bottom of the randomly selected piles
-    for pile in king_piles:
-        tableau[pile].insert(0, kings.pop())  # Insert King at the bottom (index 0)
-
-    # Deal non-King cards into all 13 columns
-    # Each pile should have 4 cards in total (1 King + 3 non-Kings or 4 non-Kings)
-    for i in range(13):
-        # If this pile has a King, add 3 more non-King cards
-        if i in king_piles:
-            for _ in range(3):
-                card = non_kings.pop()
-                tableau[i].append(card)
-        # If this pile does not have a King, add 4 non-King cards
-        else:
-            for _ in range(4):
-                card = non_kings.pop()
-                tableau[i].append(card)
-
-    # Set positions for cards: each column's cards get a vertical offset based on their index
+def deal_cards(deck, difficulty=13):
+    if difficulty == 13:
+        tableau = [[] for _ in range(13)]
+        kings = [card for card in deck if card.rank == 'king']
+        non_kings = [card for card in deck if card.rank != 'king']
+        random.shuffle(non_kings)
+        king_piles = random.sample(range(13), 4)
+        for pile in king_piles:
+            tableau[pile].insert(0, kings.pop())
+        for i in range(13):
+            if i in king_piles:
+                for _ in range(3):
+                    tableau[i].append(non_kings.pop())
+            else:
+                for _ in range(4):
+                    tableau[i].append(non_kings.pop())
+    else:
+        columns = difficulty
+        tableau = [[] for _ in range(columns)]
+        highest_rank = RANKS[difficulty - 1]
+        highest_cards = [card for card in deck if card.rank == highest_rank]
+        non_highest = [card for card in deck if card.rank != highest_rank]
+        random.shuffle(non_highest)
+        chosen_columns = random.sample(range(columns), 4) if columns >= 4 else list(range(columns))
+        for i in range(columns):
+            if i in chosen_columns:
+                tableau[i].append(highest_cards.pop())
+                for _ in range(3):
+                    tableau[i].append(non_highest.pop())
+            else:
+                for _ in range(4):
+                    tableau[i].append(non_highest.pop())
     for col_index, col in enumerate(tableau):
         for card_index, card in enumerate(col):
             card.rect.x = SPACING_X * col_index + 20
             card.rect.y = TABLEAU_Y + card_index * 30
     return tableau
 
+# --- Drawing ---
 def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
     screen.fill(BACKGROUND_COLOR)
-
     for i, col in enumerate(tableau):
         x = SPACING_X * i + 20
         y = TABLEAU_Y + 30
         rect = pygame.Rect(x, y, CARD_WIDTH, CARD_HEIGHT)
         if not col:
             pygame.draw.rect(screen, (255,255,255), rect, 3)
-
     for col in tableau:
         for card in col:
             card.draw(screen)
-
     for i, suit in enumerate(SUITS):
         x = WIDTH - (4 - i) * SPACING_X
         rect = pygame.Rect(x, FOUNDATION_Y, CARD_WIDTH, CARD_HEIGHT)
@@ -123,38 +106,549 @@ def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
             foundations[suit][-1].rect.x = x
             foundations[suit][-1].rect.y = FOUNDATION_Y
             foundations[suit][-1].draw(screen)
-
-    # Format the remaining time as MM:SS
     time_text = font.render(f"Time: {format_time(remaining_time)}", True, TEXT_COLOR)
     score_text = font.render(f"Score: {score}", True, TEXT_COLOR)
     screen.blit(time_text, (20, 20))
     screen.blit(score_text, (20, 50))
-
-    return_to_menu_button_rect = pygame.Rect(20, HEIGHT - 50, 170, 40)  # (x, y, width, height)
+    return_to_menu_button_rect = pygame.Rect(20, HEIGHT - 50, 170, 40)
     pygame.draw.rect(screen, BUTTON_COLOR, return_to_menu_button_rect)
     return_to_menu_text = font.render("Return to Menu", True, TEXT_COLOR)
-    screen.blit(return_to_menu_text, (25, HEIGHT - 45))  # Adjust text position for alignment
-
-    # Draw the undo button
+    screen.blit(return_to_menu_text, (25, HEIGHT - 45))
     undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
     pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
     undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
     screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
-    
     pygame.display.flip()
 
-def is_valid_move(card, target_col):
-    if not target_col:
-        return False  # Any card can not be placed in an empty column
-    top_card = target_col[-1]
-    return RANK_VALUES[card.rank] == RANK_VALUES[top_card.rank] - 1  # Must be one rank lower
+# --- End Game Screens ---
+def game_over_screen(score, moves, solve_time, reason="time_up"):
+    game_over_running = True
+    buttons = {
+        "Return to Menu": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 70, 200, 50),
+        "Play Again": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 140, 200, 50)
+    }
+    while game_over_running:
+        screen.fill(BACKGROUND_COLOR)
+        if reason == "time_up":
+            game_over_text = font.render("Time's up! Game over.", True, TEXT_COLOR)
+        elif reason == "no_valid_moves":
+            game_over_text = font.render("No valid moves left! Game over.", True, TEXT_COLOR)
+        elif reason == "repeating_moves":
+            game_over_text = font.render("Repeated moves detected! Game over.", True, TEXT_COLOR)
+        else:
+            game_over_text = font.render("Game over.", True, TEXT_COLOR)
+        screen.blit(game_over_text, (WIDTH//2 - game_over_text.get_width()//2, HEIGHT//2 - 100))
+        score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
+        moves_text = font.render(f"Moves: {moves}", True, TEXT_COLOR)
+        time_text = font.render(f"Time: {format_time(solve_time)}", True, TEXT_COLOR)
+        screen.blit(score_text, (WIDTH//2 - score_text.get_width()//2, HEIGHT//2 - 50))
+        screen.blit(moves_text, (WIDTH//2 - moves_text.get_width()//2, HEIGHT//2 - 20))
+        screen.blit(time_text, (WIDTH//2 - time_text.get_width()//2, HEIGHT//2 + 10))
+        for text, rect in buttons.items():
+            mouse_pos = pygame.mouse.get_pos()
+            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            label = font.render(text, True, TEXT_COLOR)
+            label_rect = label.get_rect(center=rect.center)
+            screen.blit(label, label_rect)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for text, rect in buttons.items():
+                    if rect.collidepoint(event.pos):
+                        return "menu" if text == "Return to Menu" else "play_again"
 
-def is_valid_foundation_move(card, foundation_pile):
-    if not foundation_pile:
-        return card.rank == 'ace'  # Foundation must start with an Ace
-    top_card = foundation_pile[-1]
-    return card.suit == top_card.suit and RANK_VALUES[card.rank] == RANK_VALUES[top_card.rank] + 1  # Must be next in sequence
+def winning_screen(score, moves, solve_time):
+    win_running = True
+    buttons = {
+        "Return to Menu": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 70, 200, 50),
+        "Play Again": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 140, 200, 50)
+    }
+    while win_running:
+        screen.fill(BACKGROUND_COLOR)
+        win_text = font.render("Congratulations! You won!", True, TEXT_COLOR)
+        screen.blit(win_text, (WIDTH//2 - win_text.get_width()//2, HEIGHT//2 - 100))
+        score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
+        moves_text = font.render(f"Moves: {moves}", True, TEXT_COLOR)
+        time_text = font.render(f"Time: {format_time(solve_time)}", True, TEXT_COLOR)
+        screen.blit(score_text, (WIDTH//2 - score_text.get_width()//2, HEIGHT//2 - 50))
+        screen.blit(moves_text, (WIDTH//2 - moves_text.get_width()//2, HEIGHT//2 - 20))
+        screen.blit(time_text, (WIDTH//2 - time_text.get_width()//2, HEIGHT//2 + 10))
+        for text, rect in buttons.items():
+            mouse_pos = pygame.mouse.get_pos()
+            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            label = font.render(text, True, TEXT_COLOR)
+            label_rect = label.get_rect(center=rect.center)
+            screen.blit(label, label_rect)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for text, rect in buttons.items():
+                    if rect.collidepoint(event.pos):
+                        return "menu" if text == "Return to Menu" else "play_again"
 
+# --- DFS Integration ---
+def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max_useless=10):
+    initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
+    solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    return solution
+
+
+
+# --- AI and Human Game Loops & Menus ---
+def compute_ai_move(tableau, foundations, algorithm):
+    # Simple AI: first try moving a tableau card to its foundation.
+    for col in tableau:
+        if col:
+            card = col[-1]
+            for suit, foundation_pile in foundations.items():
+                if is_valid_foundation_move(card, foundation_pile):
+                    return ("to_foundation", card, col, foundation_pile)
+    for source_col in tableau:
+        if source_col:
+            card = source_col[-1]
+            for target_col in tableau:
+                if source_col == target_col:
+                    continue
+                if target_col and is_valid_move(card, target_col):
+                    return ("to_tableau", card, source_col, target_col)
+    return None
+
+def game_loop(difficulty=13, game_duration=12):
+    deck = create_deck(difficulty)
+    tableau = deal_cards(deck, difficulty)
+    foundations = {suit: [] for suit in SUITS}
+    running = True
+    selected_card = None
+    original_position = None
+    source_col = None
+
+    clock = pygame.time.Clock()
+    start_time = pygame.time.get_ticks()
+    total_time = game_duration * 60 * 1000
+    moves_count = 0
+    score = 0
+    undo_stack = []
+    undo_count = 3
+    last_click_time = 0
+    last_clicked_card = None
+    recent_moves = []
+
+    while running:
+        elapsed_time = pygame.time.get_ticks() - start_time
+        remaining_time = max(total_time - elapsed_time, 0)
+
+        if remaining_time <= 0:
+            running = False
+            action = game_over_screen(score, moves_count, elapsed_time, reason="time_up")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                game_loop(difficulty, game_duration)
+            return
+
+        if check_win(tableau):
+            running = False
+            action = winning_screen(score, moves_count, elapsed_time)
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                game_loop(difficulty, game_duration)
+            return
+
+        if not has_valid_moves(tableau, foundations):
+            running = False
+            action = game_over_screen(score, moves_count, elapsed_time, reason="no_valid_moves")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                game_loop(difficulty, game_duration)
+            return
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)
+                if return_to_menu_button.collidepoint(event.pos):
+                    running = False
+                    main_menu()
+                    return
+                undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
+                if undo_button_rect.collidepoint(event.pos) and undo_count > 0:
+                    if undo_stack:
+                        tableau, foundations, score, card_positions = undo_stack.pop()
+                        for col in tableau:
+                            for card in col:
+                                card.rect.x, card.rect.y = card_positions[id(card)]
+                        for i, suit in enumerate(SUITS):
+                            if foundations[suit]:
+                                foundations[suit][-1].rect.x = WIDTH - (4 - i) * SPACING_X
+                                foundations[suit][-1].rect.y = FOUNDATION_Y
+                        undo_count -= 1
+                current_time = pygame.time.get_ticks()
+                for col in tableau:
+                    if col:
+                        card = col[-1]
+                        if card.rect.collidepoint(event.pos):
+                            if last_clicked_card == card and (current_time - last_click_time) < DOUBLE_CLICK_THRESHOLD:
+                                source_col = col
+                                card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
+                                undo_stack.append(([c.copy() for c in tableau],
+                                                   {s: pile.copy() for s, pile in foundations.items()},
+                                                   score, card_positions))
+                                for suit, foundation_pile in foundations.items():
+                                    if suit == card.suit and is_valid_foundation_move(card, foundation_pile):
+                                        source_col.remove(card)
+                                        foundation_pile.append(card)
+                                        moves_count += 1
+                                        score += SCORE_INCREMENT
+                                        source_index = tableau.index(source_col)
+                                        move_tuple = ("foundation", card.rank, card.suit, source_index, SUITS.index(suit))
+                                        recent_moves.append(move_tuple)
+                                        break
+                                last_click_time = 0
+                                last_clicked_card = None
+                                break
+                            else:
+                                selected_card = card
+                                original_position = (card.rect.x, card.rect.y)
+                                card.offset_x = event.pos[0] - card.rect.x
+                                card.offset_y = event.pos[1] - card.rect.y
+                                card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
+                                undo_stack.append(([col.copy() for col in tableau],
+                                                   {s: pile.copy() for s, pile in foundations.items()},
+                                                   score, card_positions))
+                                last_clicked_card = card
+                                last_click_time = current_time
+                                break
+            elif event.type == pygame.MOUSEMOTION:
+                if selected_card:
+                    selected_card.rect.x = event.pos[0] - selected_card.offset_x
+                    selected_card.rect.y = event.pos[1] - selected_card.offset_y
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if selected_card:
+                    source_col = None
+                    for col in tableau:
+                        if col and col[-1] == selected_card:
+                            source_col = col
+                            break
+                    target_col = None
+                    for col in tableau:
+                        if col and col[-1].rect.collidepoint(event.pos) and source_col != col:
+                            target_col = col
+                            break
+                        elif not col:
+                            col_index = tableau.index(col)
+                            col_x = SPACING_X * col_index + 20
+                            col_rect = pygame.Rect(col_x, TABLEAU_Y + 30, CARD_WIDTH, CARD_HEIGHT)
+                            if col_rect.collidepoint(event.pos):
+                                target_col = col
+                                break
+                    moved_to_foundation = False
+                    for suit, foundation_pile in foundations.items():
+                        if foundation_pile:
+                            if foundation_pile[-1].rect.collidepoint(event.pos) and is_valid_foundation_move(selected_card, foundation_pile):
+                                source_col.remove(selected_card)
+                                foundation_pile.append(selected_card)
+                                moves_count += 1
+                                score += SCORE_INCREMENT
+                                moved_to_foundation = True
+                                source_index = tableau.index(source_col)
+                                move_tuple = ("foundation", selected_card.rank, selected_card.suit, source_index, SUITS.index(suit))
+                                recent_moves.append(move_tuple)
+                                break
+                        else:
+                            foundation_x = WIDTH - (4 - list(foundations.keys()).index(suit)) * SPACING_X
+                            foundation_rect = pygame.Rect(foundation_x, FOUNDATION_Y, CARD_WIDTH, CARD_HEIGHT)
+                            if foundation_rect.collidepoint(event.pos) and selected_card.rank == 'ace':
+                                source_col.remove(selected_card)
+                                foundation_pile.append(selected_card)
+                                moves_count += 1
+                                score += SCORE_INCREMENT
+                                moved_to_foundation = True
+                                source_index = tableau.index(source_col)
+                                move_tuple = ("foundation", selected_card.rank, selected_card.suit, source_index, SUITS.index(suit))
+                                recent_moves.append(move_tuple)
+                                break
+                    if selected_card and not moved_to_foundation:
+                        if target_col and is_valid_move(selected_card, target_col):
+                            source_col.remove(selected_card)
+                            target_col.append(selected_card)
+                            moves_count += 1
+                            source_index = tableau.index(source_col)
+                            target_index = tableau.index(target_col)
+                            move_tuple = ("tableau", selected_card.rank, selected_card.suit, source_index, target_index)
+                            recent_moves.append(move_tuple)
+                        else:
+                            selected_card.rect.x, selected_card.rect.y = original_position
+                            if undo_stack:
+                                undo_stack.pop()
+                    selected_card = None
+                    original_position = None
+
+        if len(recent_moves) >= 6:
+            m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
+            if m1 == m3 == m5 and m2 == m4 == m6:
+                running = False
+                action = game_over_screen(score, moves_count, elapsed_time, reason="repeating_moves")
+                if action == "menu":
+                    main_menu()
+                elif action == "play_again":
+                    game_loop(difficulty, game_duration)
+                return
+
+        draw_table(screen, tableau, foundations, remaining_time, score, undo_count)
+        pygame.display.flip()
+        clock.tick(60)
+
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless):
+    deck = create_deck(difficulty)
+    tableau = deal_cards(deck, difficulty)
+    foundations = {suit: [] for suit in SUITS}
+    clock = pygame.time.Clock()
+    start_time = pygame.time.get_ticks()
+    total_time = game_duration * 60 * 1000
+    moves_count = 0
+    score = 0
+    dfs_cancel_event.clear()
+    recent_moves = []
+    
+    if algorithm == "DFS":
+        # Display the initial state and a message that DFS is searching
+        draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
+        searching_text = font.render("AI is searching for a solution...", True, TEXT_COLOR)
+        screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
+        give_up_rect = pygame.Rect(WIDTH - 200, HEIGHT - 50, 180, 40)
+        pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
+        give_up_text = font.render("Give Up", True, TEXT_COLOR)
+        screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
+        pygame.display.flip()
+
+        # Run DFS in a separate thread.
+        solution_container = {}  # Use a dict to store the solution result
+        def dfs_thread():
+            solution = run_dfs_solver(tableau, foundations, depth_limit=10000, cancel_event=dfs_cancel_event, max_useless=max_useless)
+
+            solution_container['solution'] = solution
+
+        thread = threading.Thread(target=dfs_thread)
+        thread.start()
+
+        # Now enter a loop that updates the display and checks for "Give up"
+        searching = True
+        while searching:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    dfs_cancel_event.set()
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if give_up_rect.collidepoint(event.pos):
+                        # User clicked "Give up"
+                        dfs_cancel_event.set()
+                        searching = False
+                        main_menu()
+                        return
+
+            #update runtime info on screen:
+            current_time = pygame.time.get_ticks()
+            elapsed = current_time - start_time
+            runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
+            # Redraw background, initial state, and runtime:
+            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
+            screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
+            screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
+            pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
+            screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
+            pygame.display.flip()
+            clock.tick(30)
+
+            # If the DFS thread is finished, break out of the loop.
+            if not thread.is_alive():
+                searching = False
+
+        # Once DFS thread finishes, check if we have a solution.
+        solution = solution_container.get('solution', None)
+        runtime = pygame.time.get_ticks() - start_time
+        print("DFS run time (ms):", runtime)
+        if solution:
+            print("DFS solution found:", solution)
+            # For each move in the solution, animate it.
+            for move in solution:
+                if move[0] == "to_foundation":
+                    src_index = move[1]
+                    card = None
+                    for c in tableau[src_index]:
+                        if c.rank == move[2] and c.suit == move[3]:
+                            card = c
+                            break
+                    if card is not None:
+                        start_pos = (card.rect.x, card.rect.y)
+                        # Determine target position in the foundation.
+                        # (Assuming foundation positions are computed as in draw_table)
+                        foundation_index = SUITS.index(card.suit)
+                        target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
+                        # Set duration based on display_mode:
+                        duration_val = 1000 if display_mode else 10  # 1 sec in slow mode, 10ms in fast mode
+                        animate_move(card, start_pos, target_pos, duration=duration_val, 
+                                    draw_func=draw_table, clock=clock,
+                                    extra_draw_args=(screen, tableau, foundations,
+                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                                    score, 0))
+
+                        tableau[src_index].pop()
+                        foundations[card.suit].append(card)
+                        score += SCORE_INCREMENT
+                        moves_count += 1
+
+                elif move[0] == "to_tableau":
+                    src_index = move[1]
+                    tgt_index = move[2]
+                    card = None
+                    for c in tableau[src_index]:
+                        if c.rank == move[3] and c.suit == move[4]:
+                            card = c
+                            break
+                    if card is not None:
+                        start_pos = (card.rect.x, card.rect.y)
+                        # Determine target position in the target column.
+                        target_x = SPACING_X * tgt_index + 20
+                        target_y = TABLEAU_Y + len(tableau[tgt_index]) * 30
+                        animate_move(card, start_pos, (target_x, target_y), duration=1000,
+                                    draw_func=draw_table, clock=clock,
+                                    extra_draw_args=(screen, tableau, foundations,
+                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                                    score, 0))
+                        tableau[src_index].pop()
+                        tableau[tgt_index].append(card)
+                        moves_count += 1
+
+                # Update positions after each move (optional if animate_move fully controls card positions).
+                update_positions(tableau)
+            winning_screen(score, moves_count, runtime)
+        else:
+            main_menu()
+        return
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)
+                if return_to_menu_button.collidepoint(event.pos):
+                    running = False
+                    main_menu()
+                    return
+
+        current_time = pygame.time.get_ticks()
+        elapsed_time = current_time - start_time
+        remaining_time = max(total_time - elapsed_time, 0)
+
+        if check_win(tableau):
+            running = False
+            action = winning_screen(score, moves_count, elapsed_time)
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode)
+            return
+
+        if remaining_time <= 0 or not has_valid_moves(tableau, foundations):
+            running = False
+            action = game_over_screen(score, moves_count, elapsed_time, 
+                                      reason="time_up" if remaining_time <= 0 else "no_valid_moves")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode)
+            return
+
+        move = compute_ai_move(tableau, foundations, algorithm)
+        if move is None:
+            running = False
+            action = game_over_screen(score, moves_count, elapsed_time, reason="no_valid_moves")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode)
+            return
+
+        duration_val = 1000 if display_mode else 10  # 1 sec for slow mode; 10ms for fast mode
+        move_type, card, source_col, target = move
+        if move_type == "to_foundation":
+            src_index = tableau.index(source_col)
+            foundation_index = SUITS.index(card.suit)
+            start_pos = (card.rect.x, card.rect.y)
+            target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
+            animate_move(card, start_pos, target_pos, duration_val,
+                        draw_func=draw_table, clock=clock,
+                        extra_draw_args=(screen, tableau, foundations,
+                                        max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                        score, 0))
+            source_col.pop()
+            foundations[card.suit].append(card)
+            score += SCORE_INCREMENT
+            moves_count += 1
+            recent_moves.append(move)
+
+        elif move_type == "to_tableau":
+            src_index = tableau.index(source_col)
+            tgt_index = tableau.index(target)
+            start_pos = (card.rect.x, card.rect.y)
+            target_pos = (SPACING_X * tgt_index + 20, TABLEAU_Y + len(target) * 30)
+            
+            animate_move(card, start_pos, target_pos, duration_val,
+                        draw_func=draw_table, clock=clock,
+                        extra_draw_args=(screen, tableau, foundations,
+                                        max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                        score, 0))
+            source_col.pop()
+            target.append(card)
+            moves_count += 1
+            recent_moves.append(move)
+
+        update_positions(tableau)
+        
+        if len(recent_moves) >= 6:
+            m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
+            if m1 == m3 == m5 and m2 == m4 == m6:
+                running = False
+                action = game_over_screen(score, moves_count, elapsed_time, reason="repeating_moves")
+                if action == "menu":
+                    main_menu()
+                elif action == "play_again":
+                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless)
+                return
+
+        for col_index, col in enumerate(tableau):
+            for card_index, card in enumerate(col):
+                card.rect.x = SPACING_X * col_index + 20
+                card.rect.y = TABLEAU_Y + card_index * 30
+        for i, suit in enumerate(SUITS):
+            if foundations[suit]:
+                foundations[suit][-1].rect.x = WIDTH - (4 - i) * SPACING_X
+                foundations[suit][-1].rect.y = FOUNDATION_Y
+
+        draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0)
+        pygame.display.flip()
+        if display_mode:
+            pygame.time.delay(1000)
+        clock.tick(60)
+
+# --- Menus ---
 def main_menu():
     menu_running = True
     buttons = {
@@ -173,7 +667,6 @@ def main_menu():
             label_rect = label.get_rect(center=rect.center)
             screen.blit(label, label_rect)
         pygame.display.flip()
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -182,7 +675,7 @@ def main_menu():
                 for text, rect in buttons.items():
                     if rect.collidepoint(event.pos):
                         if text == "Play":
-                            game_loop()
+                            player_mode_menu()
                         elif text == "Options":
                             options_menu()
                         elif text == "Help":
@@ -190,7 +683,6 @@ def main_menu():
                         elif text == "Exit":
                             pygame.quit()
                             sys.exit()
-
 def options_menu():
     options_running = True
     while options_running:
@@ -210,8 +702,6 @@ def help_menu():
     help_running = True
     while help_running:
         screen.fill(BACKGROUND_COLOR)
-
-        # Define the help text lines
         lines = [
             "Help:",
             "Build the four foundation piles up in Suit from Ace to King.",
@@ -220,103 +710,29 @@ def help_menu():
             "Empty spaces cannot be filled.",
             "Press any key to return."
         ]
-
-        # Render each line separately and position them vertically
-        y_offset = 100  # Starting Y position for the first line
+        y_offset = 100 
         for line in lines:
             label = small_font.render(line, True, TEXT_COLOR)
-            screen.blit(label, (50, y_offset))  # Position the line at (50, y_offset)
-            y_offset += 30  # Move down by 30 pixels for the next line
-
+            screen.blit(label, (50, y_offset)) 
         pygame.display.flip()
-
-        # Handle events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 help_running = False
-
-
-def find_card_column(card, tableau):
-    for col in tableau:
-        if col and col[-1] == card:
-            return col
-    return None
-
-# TODO retirar coisas do Game Loop e passar a funções separadas
-def format_time(milliseconds):
-    """Convert milliseconds to a string in the format MM:SS."""
-    seconds = milliseconds // 1000  # Convert milliseconds to seconds
-    minutes = seconds // 60  # Extract minutes
-    seconds = seconds % 60  # Extract remaining seconds
-    return f"{minutes:02}:{seconds:02}"  # Format as MM:SS
-
-def has_valid_moves(tableau, foundations):
-    """
-    Check if there are any valid moves left in the game.
-    Returns True if there are valid moves, False otherwise.
-    """
-    # Check if any card in the tableau can be moved to another tableau pile
-    for source_col in tableau:
-        if not source_col:
-            continue  # Skip empty columns
-        source_card = source_col[-1]  # Get the top card of the column
-        for target_col in tableau:
-            if source_col == target_col:
-                continue  # Skip the same column
-            if not target_col:
-                continue  # Cannot move to an empty column in Baker's Dozen
-            target_card = target_col[-1]
-            if is_valid_move(source_card, target_col):
-                return True  # Valid move found
-
-    # Check if any card in the tableau can be moved to a foundation pile
-    for col in tableau:
-        if not col:
-            continue  # Skip empty columns
-        card = col[-1]  # Get the top card of the column
-        for suit, foundation_pile in foundations.items():
-            if is_valid_foundation_move(card, foundation_pile):
-                return True  # Valid move found
-
-    # No valid moves found
-    return False
-
-def check_win(tableau):
-    """Check if all cards have been moved to the foundation, leaving the tableau empty."""
-    for col in tableau:
-        if col:  # If any column in the tableau is not empty
-            return False
-    return True  # All columns are empty
-
-def game_over_screen(score, reason="time_up"):
-    """Display the game over screen with 'Return to Menu' and 'Play Again' buttons."""
-    game_over_running = True
+                
+def player_mode_menu():
+    mode_running = True
     buttons = {
-        "Return to Menu": pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2, 200, 50),
-        "Play Again": pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 70, 200, 50)
+        "Human": pygame.Rect(WIDTH//2 - 100, 250, 200, 50),
+        "AI": pygame.Rect(WIDTH//2 - 100, 320, 200, 50),
+        "Return": pygame.Rect(WIDTH//2 - 100, 390, 200, 50)
     }
-
-    while game_over_running:
+    while mode_running:
         screen.fill(BACKGROUND_COLOR)
-
-        # Display game over text based on the reason
-        if reason == "time_up":
-            game_over_text = font.render("Time's up! Game over.", True, TEXT_COLOR)
-        elif reason == "no_valid_moves":
-            game_over_text = font.render("No valid moves left! Game over.", True, TEXT_COLOR)
-        else:
-            game_over_text = font.render("Game over.", True, TEXT_COLOR)
-
-        screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - 100))
-
-        # Display total score
-        score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
-        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 50))
-
-        # Draw buttons
+        title = font.render("Select Player Mode", True, TEXT_COLOR)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
         for text, rect in buttons.items():
             mouse_pos = pygame.mouse.get_pos()
             color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
@@ -324,9 +740,7 @@ def game_over_screen(score, reason="time_up"):
             label = font.render(text, True, TEXT_COLOR)
             label_rect = label.get_rect(center=rect.center)
             screen.blit(label, label_rect)
-
         pygame.display.flip()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -334,245 +748,231 @@ def game_over_screen(score, reason="time_up"):
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 for text, rect in buttons.items():
                     if rect.collidepoint(event.pos):
-                        if text == "Return to Menu":
-                            return "menu"
-                        elif text == "Play Again":
-                            return "play_again"
+                        if text == "Human":
+                            human_options_menu()
+                        elif text == "AI":
+                            ai_options_menu()
+                        elif text == "Return":
+                            main_menu()
+                        mode_running = False
+                        break
 
-def winning_screen(score):
-    """Display the winning screen with 'Return to Menu' and 'Play Again' buttons."""
-    win_running = True
-    buttons = {
-        "Return to Menu": pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2, 200, 50),
-        "Play Again": pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 70, 200, 50)
-    }
-
-    while win_running:
+def human_options_menu():
+    options_running = True
+    difficulty = 13
+    duration = 12
+    diff_rect_decr = pygame.Rect(WIDTH//2 - 150, 250, 50, 40)
+    diff_rect_incr = pygame.Rect(WIDTH//2 + 100, 250, 50, 40)
+    duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 310, 50, 40)
+    duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 310, 50, 40)
+    start_rect = pygame.Rect(WIDTH//2 - 100, 370, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 440, 200, 50)
+    while options_running:
         screen.fill(BACKGROUND_COLOR)
-
-        # Display winning text
-        win_text = font.render("Congratulations! You won!", True, TEXT_COLOR)
-        screen.blit(win_text, (WIDTH // 2 - win_text.get_width() // 2, HEIGHT // 2 - 100))
-
-        # Display total score
-        score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
-        screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 50))
-
-        # Draw buttons
-        for text, rect in buttons.items():
-            mouse_pos = pygame.mouse.get_pos()
-            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
-            pygame.draw.rect(screen, color, rect)
-            label = font.render(text, True, TEXT_COLOR)
-            label_rect = label.get_rect(center=rect.center)
-            screen.blit(label, label_rect)
-
+        title = font.render("Human Options", True, TEXT_COLOR)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 180))
+        diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
+        screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+        diff_decr_text = font.render("-", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
+        screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+        diff_incr_text = font.render("+", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
+        screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 310, 200, 40))
+        screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 315))
+        duration_decr_text = font.render("-", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_decr)
+        screen.blit(duration_decr_text, (duration_rect_decr.x + 15, duration_rect_decr.y + 5))
+        duration_incr_text = font.render("+", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
+        screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
+        start_text = font.render("Start Game", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
+        screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
+        return_text = font.render("Return", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
+        screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
         pygame.display.flip()
-
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                for text, rect in buttons.items():
-                    if rect.collidepoint(event.pos):
-                        if text == "Return to Menu":
-                            return "menu"
-                        elif text == "Play Again":
-                            return "play_again"
-
-def game_loop():
-    deck = create_deck()
-    tableau = deal_cards(deck)
-    foundations = {suit: [] for suit in SUITS}
-    running = True
-    selected_card = None
-    original_position = None
-    source_col = None
-
-    clock = pygame.time.Clock()
-    start_time = pygame.time.get_ticks()
-    total_time = 12 * 60 * 1000  # 12 minutes in milliseconds
-    elapsed_time = 0
-
-    score = 0
-
-    # Undo variables
-    undo_stack = []  # Stores previous game states and card positions for valid moves
-    undo_count = 3  # Number of undos remaining
-
-    # Variables for double-click detection
-    last_click_time = 0
-    last_clicked_card = None
-
-    # Define the "Return to Menu" button (bottom-left corner)
-
-    while running:
-        # Calculate remaining time
-        elapsed_time = pygame.time.get_ticks() - start_time
-        remaining_time = max(total_time - elapsed_time, 0)  # Ensure time doesn't go below 0
-
-        # Check if time has run out
-        if remaining_time <= 0:
-            running = False
-            print("Time's up! Game over.")
-            action = game_over_screen(score, reason="time_up")
-            if action == "menu":
-                main_menu()
-            elif action == "play_again":
-                game_loop()
-            return
-
-        # Check if the player has won
-        if check_win(tableau):
-            running = False
-            print("Congratulations! You won!")
-            action = winning_screen(score)
-            if action == "menu":
-                main_menu()
-            elif action == "play_again":
-                game_loop()
-            return
-
-        # Check if there are no valid moves left 
-        if not has_valid_moves(tableau, foundations):
-            running = False
-            print("No valid moves left! You are stuck.")
-            action = game_over_screen(score, reason="no_valid_moves")
-            if action == "menu":
-                main_menu()
-            elif action == "play_again":
-                game_loop()
-            return
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-                pygame.quit()
-                sys.exit()
-
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                # Check if the "Return to Menu" button is clicked
-                return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)
-                if return_to_menu_button.collidepoint(event.pos):
-                    running = False
+                if diff_rect_decr.collidepoint(event.pos):
+                    if difficulty > 4:
+                        difficulty -= 1
+                elif diff_rect_incr.collidepoint(event.pos):
+                    if difficulty < 13:
+                        difficulty += 1
+                elif duration_rect_decr.collidepoint(event.pos):
+                    if duration > 1:
+                        duration -= 1
+                elif duration_rect_incr.collidepoint(event.pos):
+                    duration += 1
+                elif start_rect.collidepoint(event.pos):
+                    options_running = False
+                    game_loop(difficulty, duration)
+                elif return_rect.collidepoint(event.pos):
+                    options_running = False
                     main_menu()
-                    return  # Exit the game loop and return to the main menu
 
-                # Check if the undo button is clicked
-                undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
-                if undo_button_rect.collidepoint(event.pos) and undo_count > 0:
-                    if undo_stack:
-                        # Revert to the previous game state and card positions
-                        tableau, foundations, score, card_positions = undo_stack.pop()
-                        for col in tableau:
-                            for card in col:
-                                card.rect.x, card.rect.y = card_positions[id(card)]
-                        for suit, foundation_pile in foundations.items():
-                            if foundation_pile:
-                                foundation_pile[-1].rect.x = WIDTH - (4 - list(foundations.keys()).index(suit)) * SPACING_X
-                                foundation_pile[-1].rect.y = FOUNDATION_Y
-                        undo_count -= 1
-
-                current_time = pygame.time.get_ticks()
-
-                # Check for double-click on a card
-                for col in tableau:
-                    if col:
-                        card = col[-1]
-                        if card.rect.collidepoint(event.pos):
-                            if last_clicked_card == card and (current_time - last_click_time) < DOUBLE_CLICK_THRESHOLD:
-                                # Double-click detected: attempt to move card to foundation.
-                                source_col = find_card_column(card, tableau)
-                                if source_col is not None:
-                                    # Save the current game state and card positions before making the move
-                                    card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
-                                    undo_stack.append(([col.copy() for col in tableau], {suit: pile.copy() for suit, pile in foundations.items()}, score, card_positions))
-                                    for suit, foundation_pile in foundations.items():
-                                        if suit == card.suit and is_valid_foundation_move(card, foundation_pile):
-                                            source_col.remove(card)
-                                            foundation_pile.append(card)
-                                            score += SCORE_INCREMENT
-                                            break
-                                last_click_time = 0
-                                last_clicked_card = None
-                                break
-                            else:
-                                selected_card = card
-                                original_position = (card.rect.x, card.rect.y)
-                                card.offset_x = event.pos[0] - card.rect.x
-                                card.offset_y = event.pos[1] - card.rect.y
-                                # Save the current game state and card positions before making the move
-                                card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
-                                undo_stack.append(([col.copy() for col in tableau], {suit: pile.copy() for suit, pile in foundations.items()}, score, card_positions))
-                                # Set last_clicked_card for future double-click detection.
-                                last_clicked_card = card
-                                last_click_time = current_time
-                                break
-
-            elif event.type == pygame.MOUSEMOTION:
-                if selected_card:
-                    selected_card.rect.x = event.pos[0] - selected_card.offset_x
-                    selected_card.rect.y = event.pos[1] - selected_card.offset_y
-
-            elif event.type == pygame.MOUSEBUTTONUP:
-                if selected_card:
-                    source_col = find_card_column(selected_card, tableau)
-                    target_col = None
-                    for col in tableau:
-                        if col and col[-1].rect.collidepoint(event.pos) and source_col != col:
-                            target_col = col
-                            break
-                        elif not col:
-                            col_index = tableau.index(col)
-                            col_x = SPACING_X * col_index + 20
-                            col_rect = pygame.Rect(col_x, TABLEAU_Y + 30, CARD_WIDTH, CARD_HEIGHT)
-                            if col_rect.collidepoint(event.pos):
-                                target_col = col
-                                break
-
-                    # Check if moving to a foundation
-                    moved_to_foundation = False
-                    for suit, foundation_pile in foundations.items():
-                        if foundation_pile:
-                            if foundation_pile[-1].rect.collidepoint(event.pos) and is_valid_foundation_move(selected_card, foundation_pile):
-                                source_col.remove(selected_card)
-                                foundation_pile.append(selected_card)
-                                score += SCORE_INCREMENT
-                                moved_to_foundation = True
-                                break
-                        else:
-                            foundation_x = WIDTH - (4 - list(foundations.keys()).index(suit)) * SPACING_X
-                            foundation_rect = pygame.Rect(foundation_x, FOUNDATION_Y, CARD_WIDTH, CARD_HEIGHT)
-                            if foundation_rect.collidepoint(event.pos) and selected_card.rank == 'ace':
-                                source_col.remove(selected_card)
-                                foundation_pile.append(selected_card)
-                                score += SCORE_INCREMENT
-                                moved_to_foundation = True
-                                break
-
-                    # Normal tableau move
-                    if selected_card and not moved_to_foundation:
-                        if target_col and is_valid_move(selected_card, target_col):
-                            source_col.remove(selected_card)
-                            target_col.append(selected_card)
-                        else:
-                            selected_card.rect.x, selected_card.rect.y = original_position  # Reset position if move is invalid
-                            # Remove the last state from the undo stack if the move was invalid
-                            if undo_stack:
-                                undo_stack.pop()
-                    selected_card = None
-                    original_position = None
-                    source_col = None
-
-        # Draw the table, foundations, elapsed time, and score
-        draw_table(screen, tableau, foundations, remaining_time, score, undo_count)
-
-        # Draw the "Return to Menu" button (bottom-left corner)
-        
-
+def ai_options_menu():
+    options_running = True
+    algorithm_options = ["Simple", "Random", "DFS"]
+    algorithm_index = 0
+    difficulty = 13
+    duration = 12
+    max_useless = MAX_USELESS_MOVES
+    display_mode = True
+    algo_rect = pygame.Rect(WIDTH//2 - 150, 200, 300, 40)
+    diff_rect_decr = pygame.Rect(WIDTH//2 - 150, 260, 50, 40)
+    diff_rect_incr = pygame.Rect(WIDTH//2 + 100, 260, 50, 40)
+    duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 320, 50, 40)
+    duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 320, 50, 40)
+    display_rect = pygame.Rect(WIDTH//2 - 150, 380, 300, 40)
+    start_rect = pygame.Rect(WIDTH//2 - 100, 450, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 520, 200, 50)
+    while options_running:
+        screen.fill(BACKGROUND_COLOR)
+        title = font.render("AI Options", True, TEXT_COLOR)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
+        algo_text = font.render(f"Algorithm: {algorithm_options[algorithm_index]}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, algo_rect)
+        screen.blit(algo_text, (algo_rect.x + 10, algo_rect.y + 5))
+        diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 260, 200, 40))
+        screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 265))
+        diff_decr_text = font.render("-", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
+        screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+        diff_incr_text = font.render("+", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
+        screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 320, 200, 40))
+        screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 325))
+        duration_decr_text = font.render("-", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_decr)
+        screen.blit(duration_decr_text, (duration_rect_decr.x + 15, duration_rect_decr.y + 5))
+        duration_incr_text = font.render("+", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
+        screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
+        display_str = "Slow Mode (1 sec delay)" if display_mode else "Fast Mode (no delay)"
+        display_text = font.render(f"Display Mode: {display_str}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, display_rect)
+        screen.blit(display_text, (display_rect.x + 10, display_rect.y + 5))
+        start_text = font.render("Start Game", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
+        screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
+        return_text = font.render("Return", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
+        screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
         pygame.display.flip()
-        clock.tick(60)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if algo_rect.collidepoint(event.pos):
+                    algorithm_index = (algorithm_index + 1) % len(algorithm_options)
+                elif diff_rect_decr.collidepoint(event.pos):
+                    if difficulty > 4:
+                        difficulty -= 1
+                elif diff_rect_incr.collidepoint(event.pos):
+                    if difficulty < 13:
+                        difficulty += 1
+                elif duration_rect_decr.collidepoint(event.pos):
+                    if duration > 1:
+                        duration -= 1
+                elif duration_rect_incr.collidepoint(event.pos):
+                    duration += 1
+                elif display_rect.collidepoint(event.pos):
+                    display_mode = not display_mode
+                elif start_rect.collidepoint(event.pos):
+                    options_running = False
+                    ai_game_loop(
+                        algorithm=algorithm_options[algorithm_index],
+                        difficulty=difficulty,
+                        game_duration=duration,
+                        display_mode=display_mode,
+                        max_useless=max_useless
+                    )
 
-main_menu()
+                elif return_rect.collidepoint(event.pos):
+                    options_running = False
+                    main_menu()
 
+# --- Start the Game ---
+def main_menu():
+    menu_running = True
+    buttons = {
+        "Play": pygame.Rect(WIDTH//2 - 100, 200, 200, 50),
+        "Options": pygame.Rect(WIDTH//2 - 100, 270, 200, 50),
+        "Help": pygame.Rect(WIDTH//2 - 100, 340, 200, 50),
+        "Exit": pygame.Rect(WIDTH//2 - 100, 410, 200, 50)
+    }
+    while menu_running:
+        screen.fill(BACKGROUND_COLOR)
+        for text, rect in buttons.items():
+            mouse_pos = pygame.mouse.get_pos()
+            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            label = font.render(text, True, TEXT_COLOR)
+            label_rect = label.get_rect(center=rect.center)
+            screen.blit(label, label_rect)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for text, rect in buttons.items():
+                    if rect.collidepoint(event.pos):
+                        if text == "Play":
+                            player_mode_menu()
+                        elif text == "Options":
+                            options_menu()
+                        elif text == "Help":
+                            help_menu()
+                        elif text == "Exit":
+                            pygame.quit()
+                            sys.exit()
+
+# --- Entry for Player Mode ---
+def player_mode_menu():
+    mode_running = True
+    buttons = {
+        "Human": pygame.Rect(WIDTH//2 - 100, 250, 200, 50),
+        "AI": pygame.Rect(WIDTH//2 - 100, 320, 200, 50),
+        "Return": pygame.Rect(WIDTH//2 - 100, 390, 200, 50)
+    }
+    while mode_running:
+        screen.fill(BACKGROUND_COLOR)
+        title = font.render("Select Player Mode", True, TEXT_COLOR)
+        screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
+        for text, rect in buttons.items():
+            mouse_pos = pygame.mouse.get_pos()
+            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
+            pygame.draw.rect(screen, color, rect)
+            label = font.render(text, True, TEXT_COLOR)
+            label_rect = label.get_rect(center=rect.center)
+            screen.blit(label, label_rect)
+        pygame.display.flip()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for text, rect in buttons.items():
+                    if rect.collidepoint(event.pos):
+                        if text == "Human":
+                            human_options_menu()
+                        elif text == "AI":
+                            ai_options_menu()
+                        elif text == "Return":
+                            main_menu()
+                        mode_running = False
+                        break
