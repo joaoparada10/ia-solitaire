@@ -6,6 +6,7 @@ from constants import *
 from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move
 from dfs_solver import dfs, SolitaireState
 from astar_solver import AStarSolver
+from weighted_astar_solver import WeightedAStarSolver
 import threading
 dfs_cancel_event = threading.Event()
 
@@ -412,7 +413,7 @@ def game_loop(difficulty=13, game_duration=12):
         pygame.display.flip()
         clock.tick(60)
 
-def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless):
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=10, weight=1.5):
     deck = create_deck(difficulty)
     tableau = deal_cards(deck, difficulty)
     foundations = {suit: [] for suit in SUITS}
@@ -421,133 +422,43 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
     total_time = game_duration * 60 * 1000
     moves_count = 0
     score = 0
-    dfs_cancel_event.clear()
+    dfs_cancel_event = threading.Event()
     recent_moves = []
     
-    if algorithm == "DFS":
-        # Existing DFS implementation
+    if algorithm in ["DFS", "A*", "Weighted A*"]:
+        # Draw initial state
         draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
-        searching_text = font.render("AI is searching for a solution...", True, TEXT_COLOR)
+        
+        # Set up UI elements
+        searching_text = font.render(f"AI is searching for a solution ({algorithm})...", True, TEXT_COLOR)
         screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
+        
         give_up_rect = pygame.Rect(WIDTH - 200, HEIGHT - 50, 180, 40)
         pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
         give_up_text = font.render("Give Up", True, TEXT_COLOR)
         screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
         pygame.display.flip()
 
-        solution_container = {}
-        def dfs_thread():
-            solution = run_dfs_solver(tableau, foundations, depth_limit=10000, cancel_event=dfs_cancel_event, max_useless=max_useless)
-            solution_container['solution'] = solution
-
-        thread = threading.Thread(target=dfs_thread)
-        thread.start()
-
-        searching = True
-        while searching:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    dfs_cancel_event.set()
-                    pygame.quit()
-                    sys.exit()
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    if give_up_rect.collidepoint(event.pos):
-                        dfs_cancel_event.set()
-                        searching = False
-                        main_menu()
-                        return
-
-            current_time = pygame.time.get_ticks()
-            elapsed = current_time - start_time
-            runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
-            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
-            screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
-            screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
-            pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
-            screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
-            pygame.display.flip()
-            clock.tick(30)
-
-            if not thread.is_alive():
-                searching = False
-
-        solution = solution_container.get('solution', None)
-        runtime = pygame.time.get_ticks() - start_time
-        print("DFS run time (ms):", runtime)
-        if solution:
-            print("DFS solution found:", solution)
-            for move in solution:
-                if move[0] == "to_foundation":
-                    src_index = move[1]
-                    card = None
-                    for c in tableau[src_index]:
-                        if c.rank == move[2] and c.suit == move[3]:
-                            card = c
-                            break
-                    if card is not None:
-                        start_pos = (card.rect.x, card.rect.y)
-                        foundation_index = SUITS.index(card.suit)
-                        target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
-                        duration_val = 1000 if display_mode else 10
-                        animate_move(card, start_pos, target_pos, duration=duration_val, 
-                                    draw_func=draw_table, clock=clock,
-                                    extra_draw_args=(screen, tableau, foundations,
-                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                                    score, 0))
-
-                        tableau[src_index].pop()
-                        foundations[card.suit].append(card)
-                        score += SCORE_INCREMENT
-                        moves_count += 1
-
-                elif move[0] == "to_tableau":
-                    src_index = move[1]
-                    tgt_index = move[2]
-                    card = None
-                    for c in tableau[src_index]:
-                        if c.rank == move[3] and c.suit == move[4]:
-                            card = c
-                            break
-                    if card is not None:
-                        start_pos = (card.rect.x, card.rect.y)
-                        target_x = SPACING_X * tgt_index + 20
-                        target_y = TABLEAU_Y + len(tableau[tgt_index]) * 30
-                        animate_move(card, start_pos, (target_x, target_y), duration=1000,
-                                    draw_func=draw_table, clock=clock,
-                                    extra_draw_args=(screen, tableau, foundations,
-                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                                    score, 0))
-                        tableau[src_index].pop()
-                        tableau[tgt_index].append(card)
-                        moves_count += 1
-
-                update_positions(tableau)
-            winning_screen(score, moves_count, runtime)
-        else:
-            main_menu()
-        return
-    
-    elif algorithm == "A*":
-        # New A* implementation
-        draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
-        searching_text = font.render("AI is searching for a solution (A*)...", True, TEXT_COLOR)
-        screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
-        give_up_rect = pygame.Rect(WIDTH - 200, HEIGHT - 50, 180, 40)
-        pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
-        give_up_text = font.render("Give Up", True, TEXT_COLOR)
-        screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
-        pygame.display.flip()
-
-        initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
         solution_container = {}
         
-        def astar_thread():
-            solver = AStarSolver(initial_state)
-            solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
-            solution_container['solution'] = solution
-            solution_container['nodes_expanded'] = solver.nodes_expanded if hasattr(solver, 'nodes_expanded') else 0
+        def solver_thread():
+            initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
             
-        thread = threading.Thread(target=astar_thread)
+            if algorithm == "DFS":
+                solution = run_dfs_solver(tableau, foundations, depth_limit=10000, 
+                                         cancel_event=dfs_cancel_event, max_useless=max_useless)
+            elif algorithm == "A*":
+                solver = AStarSolver(initial_state)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
+            elif algorithm == "Weighted A*":
+                solver = WeightedAStarSolver(initial_state, weight=weight)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
+            
+            solution_container['solution'] = solution
+            if algorithm in ["A*", "Weighted A*"]:
+                solution_container['nodes_expanded'] = solver.nodes_expanded
+
+        thread = threading.Thread(target=solver_thread)
         thread.start()
 
         searching = True
@@ -567,9 +478,15 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             current_time = pygame.time.get_ticks()
             elapsed = current_time - start_time
             runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
+            
             draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
             screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
             screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
+            
+            if algorithm in ["A*", "Weighted A*"] and 'nodes_expanded' in solution_container:
+                nodes_text = font.render(f"Nodes expanded: {solution_container['nodes_expanded']}", True, TEXT_COLOR)
+                screen.blit(nodes_text, (WIDTH//2 - nodes_text.get_width()//2, 160))
+            
             pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
             screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
             pygame.display.flip()
@@ -579,12 +496,13 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                 searching = False
 
         solution = solution_container.get('solution', None)
-        nodes_expanded = solution_container.get('nodes_expanded', 0)
         runtime = pygame.time.get_ticks() - start_time
-        print(f"A* expanded {nodes_expanded} nodes in {runtime} ms")
         
         if solution:
-            print("A* solution found with", len(solution), "moves")
+            print(f"{algorithm} solution found in {runtime}ms")
+            if algorithm in ["A*", "Weighted A*"]:
+                print(f"Expanded {solution_container['nodes_expanded']} nodes")
+            
             for move in solution:
                 if move[0] == "to_foundation":
                     src_index = move[1]
@@ -631,12 +549,13 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         moves_count += 1
 
                 update_positions(tableau)
+            
             winning_screen(score, moves_count, runtime)
         else:
             main_menu()
         return
     
-    # Existing code for other algorithms (Simple, Random)
+    # Existing code for Simple and Random algorithms
     running = True
     while running:
         for event in pygame.event.get():
@@ -660,17 +579,17 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
             return
 
         if remaining_time <= 0 or not has_valid_moves(tableau, foundations):
             running = False
             action = game_over_screen(score, moves_count, elapsed_time, 
-                                      reason="time_up" if remaining_time <= 0 else "no_valid_moves")
+                                    reason="time_up" if remaining_time <= 0 else "no_valid_moves")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
             return
 
         move = compute_ai_move(tableau, foundations, algorithm)
@@ -680,7 +599,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
             return
 
         duration_val = 1000 if display_mode else 10
@@ -727,17 +646,8 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                 if action == "menu":
                     main_menu()
                 elif action == "play_again":
-                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless)
+                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
                 return
-
-        for col_index, col in enumerate(tableau):
-            for card_index, card in enumerate(col):
-                card.rect.x = SPACING_X * col_index + 20
-                card.rect.y = TABLEAU_Y + card_index * 30
-        for i, suit in enumerate(SUITS):
-            if foundations[suit]:
-                foundations[suit][-1].rect.x = WIDTH - (4 - i) * SPACING_X
-                foundations[suit][-1].rect.y = FOUNDATION_Y
 
         draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0)
         pygame.display.flip()
@@ -918,27 +828,39 @@ def human_options_menu():
 
 def ai_options_menu():
     options_running = True
-    algorithm_options = ["Simple", "Random", "DFS", "A*"]
+    algorithm_options = ["Simple", "Random", "DFS", "A*", "Weighted A*"]
     algorithm_index = 0
     difficulty = 13
     duration = 12
-    max_useless = MAX_USELESS_MOVES
+    max_useless = 10  # Default value for DFS
     display_mode = True
+    weight = 1.5  # Default weight for Weighted A*
+
+    # Rectangle definitions
     algo_rect = pygame.Rect(WIDTH//2 - 150, 200, 300, 40)
     diff_rect_decr = pygame.Rect(WIDTH//2 - 150, 260, 50, 40)
     diff_rect_incr = pygame.Rect(WIDTH//2 + 100, 260, 50, 40)
     duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 320, 50, 40)
     duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 320, 50, 40)
-    display_rect = pygame.Rect(WIDTH//2 - 150, 380, 300, 40)
-    start_rect = pygame.Rect(WIDTH//2 - 100, 450, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 520, 200, 50)
+    useless_rect_decr = pygame.Rect(WIDTH//2 - 150, 380, 50, 40)
+    useless_rect_incr = pygame.Rect(WIDTH//2 + 100, 380, 50, 40)
+    display_rect = pygame.Rect(WIDTH//2 - 150, 440, 300, 40)
+    weight_rect_decr = pygame.Rect(WIDTH//2 - 150, 500, 50, 40)
+    weight_rect_incr = pygame.Rect(WIDTH//2 + 100, 500, 50, 40)
+    start_rect = pygame.Rect(WIDTH//2 - 100, 570, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 640, 200, 50)
+
     while options_running:
         screen.fill(BACKGROUND_COLOR)
         title = font.render("AI Options", True, TEXT_COLOR)
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
+
+        # Algorithm selection
         algo_text = font.render(f"Algorithm: {algorithm_options[algorithm_index]}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, algo_rect)
         screen.blit(algo_text, (algo_rect.x + 10, algo_rect.y + 5))
+
+        # Difficulty selection
         diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 260, 200, 40))
         screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 265))
@@ -948,6 +870,8 @@ def ai_options_menu():
         diff_incr_text = font.render("+", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
         screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+
+        # Duration selection
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 320, 200, 40))
         screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 325))
@@ -957,17 +881,47 @@ def ai_options_menu():
         duration_incr_text = font.render("+", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
         screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
+
+        # Max useless moves (for DFS)
+        if algorithm_options[algorithm_index] == "DFS":
+            useless_text = font.render(f"Max Useless Moves: {max_useless}", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 380, 200, 40))
+            screen.blit(useless_text, (WIDTH//2 - useless_text.get_width()//2, 385))
+            useless_decr_text = font.render("-", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, useless_rect_decr)
+            screen.blit(useless_decr_text, (useless_rect_decr.x + 15, useless_rect_decr.y + 5))
+            useless_incr_text = font.render("+", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, useless_rect_incr)
+            screen.blit(useless_incr_text, (useless_rect_incr.x + 15, useless_rect_incr.y + 5))
+
+        # Display mode
         display_str = "Slow Mode (1 sec delay)" if display_mode else "Fast Mode (no delay)"
         display_text = font.render(f"Display Mode: {display_str}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, display_rect)
         screen.blit(display_text, (display_rect.x + 10, display_rect.y + 5))
+
+        # Weight parameter (for Weighted A*)
+        if algorithm_options[algorithm_index] == "Weighted A*":
+            weight_text = font.render(f"Heuristic Weight: {weight:.1f}", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 500, 200, 40))
+            screen.blit(weight_text, (WIDTH//2 - weight_text.get_width()//2, 505))
+            weight_decr_text = font.render("-", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, weight_rect_decr)
+            screen.blit(weight_decr_text, (weight_rect_decr.x + 15, weight_rect_decr.y + 5))
+            weight_incr_text = font.render("+", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, weight_rect_incr)
+            screen.blit(weight_incr_text, (weight_rect_incr.x + 15, weight_rect_incr.y + 5))
+
+        # Start and Return buttons
         start_text = font.render("Start Game", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
         screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
         return_text = font.render("Return", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
         screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
+
         pygame.display.flip()
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -986,8 +940,19 @@ def ai_options_menu():
                         duration -= 1
                 elif duration_rect_incr.collidepoint(event.pos):
                     duration += 1
+                elif algorithm_options[algorithm_index] == "DFS" and useless_rect_decr.collidepoint(event.pos):
+                    if max_useless > 1:
+                        max_useless -= 1
+                elif algorithm_options[algorithm_index] == "DFS" and useless_rect_incr.collidepoint(event.pos):
+                    max_useless += 1
                 elif display_rect.collidepoint(event.pos):
                     display_mode = not display_mode
+                elif algorithm_options[algorithm_index] == "Weighted A*" and weight_rect_decr.collidepoint(event.pos):
+                    if weight > 1.0:
+                        weight -= 0.1
+                elif algorithm_options[algorithm_index] == "Weighted A*" and weight_rect_incr.collidepoint(event.pos):
+                    if weight < 5.0:
+                        weight += 0.1
                 elif start_rect.collidepoint(event.pos):
                     options_running = False
                     ai_game_loop(
@@ -995,9 +960,9 @@ def ai_options_menu():
                         difficulty=difficulty,
                         game_duration=duration,
                         display_mode=display_mode,
-                        max_useless=max_useless
+                        max_useless=max_useless,
+                        weight=weight
                     )
-
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
