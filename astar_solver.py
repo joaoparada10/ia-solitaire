@@ -67,13 +67,6 @@ class AStarSolver:
         return None
     
 def improved_heuristic(state):
-    """
-    An enhanced heuristic for Baker's Dozen Solitaire.
-    - Encourages reducing tableau size.
-    - Penalizes blocked and immobile cards.
-    - Rewards foundation progress.
-    - Accounts for sequences, empty columns, and king positioning.
-    """
     
     # 1. Count of remaining cards in tableau (highest priority factor)
     remaining_cards = sum(len(col) for col in state.tableau)
