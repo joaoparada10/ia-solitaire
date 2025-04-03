@@ -1,5 +1,6 @@
 import pygame
 import constants
+import sys
 
 def load_card_images():
     CARD_IMAGES = {}

@@ -7,6 +7,7 @@ class SolitaireState:
         self.foundations = foundations  # dict mapping suit to list of cards
         self.moves = moves if moves is not None else []  # record of moves made
 
+    
     def __repr__(self):
         # Create a canonical representation:
         # Represent each card as a tuple (rank, suit)
@@ -67,7 +68,15 @@ class SolitaireState:
                     new_state.moves.append(("to_tableau", i, j, card.rank, card.suit))
                     successors.append(new_state)
         return successors
+    
+    def get_cost(self, move): return 1
 
+    def __str__(self):
+        foundation_str = "\n".join(f"{suit}: {[c.rank for c in pile]}" 
+                                 for suit, pile in self.foundations.items())
+        tableau_str = "\n".join(f"Column {i}: {[c.rank for c in col]}" 
+                               for i, col in enumerate(self.tableau))
+        return f"Foundations:\n{foundation_str}\n\nTableau:\n{tableau_str}"
 
 
 def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_useless=20, counter=[0]):
