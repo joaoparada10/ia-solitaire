@@ -3,7 +3,7 @@ import sys
 import random
 import copy
 from constants import *
-from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move
+from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move, get_hint
 from dfs_solver import dfs, SolitaireState
 from astar_solver import AStarSolver
 from weighted_astar_solver import WeightedAStarSolver
@@ -89,7 +89,8 @@ def deal_cards(deck, difficulty=13):
     return tableau
 
 # --- Drawing ---
-def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
+def draw_table(screen, tableau, foundations, remaining_time, score, undo_count, 
+              hint_active=False, hint_card=None, is_human=True):  # Add is_human parameter
     screen.fill(BACKGROUND_COLOR)
     for i, col in enumerate(tableau):
         x = SPACING_X * i + 20
@@ -108,19 +109,38 @@ def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
             foundations[suit][-1].rect.x = x
             foundations[suit][-1].rect.y = FOUNDATION_Y
             foundations[suit][-1].draw(screen)
+    
+    # Draw UI elements
     time_text = font.render(f"Time: {format_time(remaining_time)}", True, TEXT_COLOR)
     score_text = font.render(f"Score: {score}", True, TEXT_COLOR)
     screen.blit(time_text, (20, 20))
     screen.blit(score_text, (20, 50))
+    
+    # Draw buttons
     return_to_menu_button_rect = pygame.Rect(20, HEIGHT - 50, 170, 40)
     pygame.draw.rect(screen, BUTTON_COLOR, return_to_menu_button_rect)
     return_to_menu_text = font.render("Return to Menu", True, TEXT_COLOR)
     screen.blit(return_to_menu_text, (25, HEIGHT - 45))
+    
     undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
     pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
     undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
     screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
+    
+    # Only draw hint button in human mode
+    hint_button_rect = None
+    if is_human:
+        hint_button_rect = pygame.Rect(WIDTH - 300, HEIGHT - 50, 100, 30)
+        pygame.draw.rect(screen, BUTTON_COLOR, hint_button_rect)
+        hint_text = font.render("Hint", True, TEXT_COLOR)
+        screen.blit(hint_text, (hint_button_rect.x + 10, hint_button_rect.y + 5))
+    
+    # Highlight hinted card if active
+    if hint_active and hint_card:
+        pygame.draw.rect(screen, HINT_COLOR, hint_card.rect, 3)
+    
     pygame.display.flip()
+    return hint_button_rect  # Return the rect for click detection (None in AI mode)
 
 # --- End Game Screens ---
 def game_over_screen(score, moves, solve_time, reason="time_up"):
@@ -223,7 +243,7 @@ def compute_ai_move(tableau, foundations, algorithm):
                     return ("to_tableau", card, source_col, target_col)
     return None
 
-def game_loop(difficulty=13, game_duration=12):
+def game_loop(difficulty=13, game_duration=12, player_mode="human"):
     deck = create_deck(difficulty)
     tableau = deal_cards(deck, difficulty)
     foundations = {suit: [] for suit in SUITS}
@@ -243,10 +263,18 @@ def game_loop(difficulty=13, game_duration=12):
     last_clicked_card = None
     recent_moves = []
 
+    # Hint system variables
+    hint_button_rect = pygame.Rect(WIDTH - 300, HEIGHT - 50, 100, 30)  
+    hint_active = False
+    hint_card = None
+    hint_timer = 0
+    is_human = player_mode  # Flag to check if human mode
+
     while running:
         elapsed_time = pygame.time.get_ticks() - start_time
         remaining_time = max(total_time - elapsed_time, 0)
 
+        # Check win/lose conditions
         if remaining_time <= 0:
             running = False
             action = game_over_screen(score, moves_count, elapsed_time, reason="time_up")
@@ -274,17 +302,22 @@ def game_loop(difficulty=13, game_duration=12):
                 game_loop(difficulty, game_duration)
             return
 
+        # Event handling
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
                 pygame.quit()
                 sys.exit()
+            
             elif event.type == pygame.MOUSEBUTTONDOWN:
+                # Return to menu button
                 return_to_menu_button = pygame.Rect(20, HEIGHT - 50, 170, 40)
                 if return_to_menu_button.collidepoint(event.pos):
                     running = False
                     main_menu()
                     return
+                
+                # Undo button
                 undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
                 if undo_button_rect.collidepoint(event.pos) and undo_count > 0:
                     if undo_stack:
@@ -297,6 +330,22 @@ def game_loop(difficulty=13, game_duration=12):
                                 foundations[suit][-1].rect.x = WIDTH - (4 - i) * SPACING_X
                                 foundations[suit][-1].rect.y = FOUNDATION_Y
                         undo_count -= 1
+                
+                # Hint button
+                if is_human and hint_button_rect and hint_button_rect.collidepoint(event.pos):
+                    hint = get_hint(tableau, foundations)
+                    if hint:
+                        hint_active = True
+                        hint_card = hint[1]  # The card to highlight
+                        hint_timer = pygame.time.get_ticks()
+                    else:
+                        # Show "no hint" message temporarily
+                        no_hint_text = font.render("No moves available!", True, (255, 0, 0))
+                        screen.blit(no_hint_text, (WIDTH//2 - 80, HEIGHT - 100))
+                        pygame.display.flip()
+                        pygame.time.delay(1000)
+                
+                # Card selection
                 current_time = pygame.time.get_ticks()
                 for col in tableau:
                     if col:
@@ -306,8 +355,8 @@ def game_loop(difficulty=13, game_duration=12):
                                 source_col = col
                                 card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
                                 undo_stack.append(([c.copy() for c in tableau],
-                                                   {s: pile.copy() for s, pile in foundations.items()},
-                                                   score, card_positions))
+                                                {s: pile.copy() for s, pile in foundations.items()},
+                                                score, card_positions))
                                 for suit, foundation_pile in foundations.items():
                                     if suit == card.suit and is_valid_foundation_move(card, foundation_pile):
                                         source_col.remove(card)
@@ -328,15 +377,17 @@ def game_loop(difficulty=13, game_duration=12):
                                 card.offset_y = event.pos[1] - card.rect.y
                                 card_positions = {id(card): (card.rect.x, card.rect.y) for col in tableau for card in col}
                                 undo_stack.append(([col.copy() for col in tableau],
-                                                   {s: pile.copy() for s, pile in foundations.items()},
-                                                   score, card_positions))
+                                                {s: pile.copy() for s, pile in foundations.items()},
+                                                score, card_positions))
                                 last_clicked_card = card
                                 last_click_time = current_time
                                 break
+            
             elif event.type == pygame.MOUSEMOTION:
                 if selected_card:
                     selected_card.rect.x = event.pos[0] - selected_card.offset_x
                     selected_card.rect.y = event.pos[1] - selected_card.offset_y
+            
             elif event.type == pygame.MOUSEBUTTONUP:
                 if selected_card:
                     source_col = None
@@ -344,6 +395,7 @@ def game_loop(difficulty=13, game_duration=12):
                         if col and col[-1] == selected_card:
                             source_col = col
                             break
+                    
                     target_col = None
                     for col in tableau:
                         if col and col[-1].rect.collidepoint(event.pos) and source_col != col:
@@ -356,6 +408,7 @@ def game_loop(difficulty=13, game_duration=12):
                             if col_rect.collidepoint(event.pos):
                                 target_col = col
                                 break
+                    
                     moved_to_foundation = False
                     for suit, foundation_pile in foundations.items():
                         if foundation_pile:
@@ -382,6 +435,7 @@ def game_loop(difficulty=13, game_duration=12):
                                 move_tuple = ("foundation", selected_card.rank, selected_card.suit, source_index, SUITS.index(suit))
                                 recent_moves.append(move_tuple)
                                 break
+                    
                     if selected_card and not moved_to_foundation:
                         if target_col and is_valid_move(selected_card, target_col):
                             source_col.remove(selected_card)
@@ -395,9 +449,11 @@ def game_loop(difficulty=13, game_duration=12):
                             selected_card.rect.x, selected_card.rect.y = original_position
                             if undo_stack:
                                 undo_stack.pop()
+                    
                     selected_card = None
                     original_position = None
 
+        # Check for repeating moves
         if len(recent_moves) >= 6:
             m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
             if m1 == m3 == m5 and m2 == m4 == m6:
@@ -409,7 +465,24 @@ def game_loop(difficulty=13, game_duration=12):
                     game_loop(difficulty, game_duration)
                 return
 
-        draw_table(screen, tableau, foundations, remaining_time, score, undo_count)
+        # Auto-hide hint after 5 seconds
+        if hint_active and pygame.time.get_ticks() - hint_timer > 5000:
+            hint_active = False
+            hint_card = None
+
+        # Draw everything
+        draw_table(screen, tableau, foundations, remaining_time, score, undo_count, 
+                            hint_active, hint_card, is_human)
+        
+        # Draw hint button (must be drawn after the cards)
+        pygame.draw.rect(screen, BUTTON_COLOR, hint_button_rect)
+        hint_text = font.render("Hint", True, TEXT_COLOR)
+        screen.blit(hint_text, (hint_button_rect.x + 10, hint_button_rect.y + 5))
+        
+        # Highlight hinted card if active
+        if hint_active and hint_card:
+            pygame.draw.rect(screen, HINT_COLOR, hint_card.rect, 3)
+        
         pygame.display.flip()
         clock.tick(60)
 
@@ -427,7 +500,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
     
     if algorithm in ["DFS", "A*", "Weighted A*"]:
         # Draw initial state
-        draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
+        draw_table(screen, tableau, foundations, total_time, score, undo_count=0, is_human=False)
         
         # Set up UI elements
         searching_text = font.render(f"AI is searching for a solution ({algorithm})...", True, TEXT_COLOR)
@@ -479,7 +552,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             elapsed = current_time - start_time
             runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
             
-            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
+            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0, is_human=False)
             screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
             screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
             
@@ -649,7 +722,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                     ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
                 return
 
-        draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0)
+        draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0, is_human=False)
         pygame.display.flip()
         if display_mode:
             pygame.time.delay(1000)

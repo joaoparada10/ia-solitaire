@@ -88,4 +88,30 @@ def animate_move(card, start_pos, end_pos, duration, draw_func, clock, extra_dra
         if t >= 1:
             break
 
-
+def get_hint(tableau, foundations):
+    """Returns a suggested move for the current game state"""
+    # First priority: Move cards to foundation if possible
+    for col in tableau:
+        if col:
+            card = col[-1]
+            foundation_pile = foundations[card.suit]
+            if is_valid_foundation_move(card, foundation_pile):
+                return ("to_foundation", card, col, foundation_pile)
+    
+    # Second priority: Uncover hidden cards by moving tableau cards
+    for src_col in tableau:
+        if len(src_col) > 1:  # Only consider moves that uncover cards
+            card = src_col[-1]
+            for dst_col in tableau:
+                if src_col != dst_col and is_valid_move(card, dst_col):
+                    return ("to_tableau", card, src_col, dst_col)
+    
+    # Third priority: Any valid tableau move
+    for src_col in tableau:
+        if src_col:
+            card = src_col[-1]
+            for dst_col in tableau:
+                if src_col != dst_col and is_valid_move(card, dst_col):
+                    return ("to_tableau", card, src_col, dst_col)
+    
+    return None  # No valid moves found
