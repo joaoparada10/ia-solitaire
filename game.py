@@ -123,7 +123,7 @@ def draw_table(screen, tableau, foundations, remaining_time, score, undo_count):
     pygame.display.flip()
 
 # --- End Game Screens ---
-def game_over_screen(score, moves, solve_time, reason="time_up"):
+def game_over_screen(score, moves, solve_time, reason, initial_tableau=None):
     game_over_running = True
     buttons = {
         "Return to Menu": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 70, 200, 50),
@@ -194,9 +194,11 @@ def compute_ai_move(tableau, foundations, algorithm):
                     return ("to_tableau", card, source_col, target_col)
     return None
 
-def game_loop(difficulty=13, game_duration=12):
+def game_loop(difficulty=13, game_duration=12, tableau=None):
     deck = create_deck(difficulty)
-    tableau = deal_cards(deck, difficulty)
+    if tableau == None:
+        tableau = deal_cards(deck, difficulty)
+    initial_tableau = tableau
     foundations = {suit: [] for suit in SUITS}
     running = True
     selected_card = None
@@ -220,29 +222,29 @@ def game_loop(difficulty=13, game_duration=12):
 
         if remaining_time <= 0:
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, reason="time_up")
+            action = game_over_screen(score, moves_count, elapsed_time, "time_up", initial_tableau)
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration)
+                game_loop(difficulty, game_duration,initial_tableau)
             return
 
         if check_win(tableau):
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, reason="user_won")
+            action = game_over_screen(score, moves_count, elapsed_time, "user_won",initial_tableau)
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration)
+                game_loop(difficulty, game_duration,initial_tableau)
             return
 
         if not has_valid_moves(tableau, foundations):
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, reason="no_valid_moves")
+            action = game_over_screen(score, moves_count, elapsed_time, "no_valid_moves",initial_tableau)
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration)
+                game_loop(difficulty, game_duration,initial_tableau)
             return
 
         for event in pygame.event.get():
@@ -373,7 +375,7 @@ def game_loop(difficulty=13, game_duration=12):
             m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
             if m1 == m3 == m5 and m2 == m4 == m6:
                 running = False
-                action = game_over_screen(score, moves_count, elapsed_time, reason="repeating_moves")
+                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves",initial_tableau)
                 if action == "menu":
                     main_menu()
                 elif action == "play_again":
@@ -384,9 +386,11 @@ def game_loop(difficulty=13, game_duration=12):
         pygame.display.flip()
         clock.tick(60)
 
-def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=MAX_USELESS_MOVES, weight=1.5):
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=MAX_USELESS_MOVES, weight=1.5,tableau=None):
     deck = create_deck(difficulty)
-    tableau = deal_cards(deck, difficulty)
+    if tableau == None:
+        tableau = deal_cards(deck, difficulty)
+    initial_tableau = tableau
     foundations = {suit: [] for suit in SUITS}
     clock = pygame.time.Clock()
     start_time = pygame.time.get_ticks()
@@ -522,7 +526,13 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         moves_count += 1
 
                 update_positions(tableau)
-            game_over_screen(score, moves_count, runtime, reason="user_won")
+            action = game_over_screen(score, moves_count, runtime,"user_won")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+            return
+            
         else:
             main_menu()
         return
@@ -551,7 +561,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
             return
 
         if remaining_time <= 0 or not has_valid_moves(tableau, foundations):
@@ -561,7 +571,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
             return
 
         move = compute_ai_move(tableau, foundations, algorithm)
@@ -571,7 +581,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
+                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
             return
 
         duration_val = 1000 if display_mode else 10
@@ -614,11 +624,11 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
             if m1 == m3 == m5 and m2 == m4 == m6:
                 running = False
-                action = game_over_screen(score, moves_count, elapsed_time, reason="repeating_moves")
+                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves", initial_tableau)
                 if action == "menu":
                     main_menu()
                 elif action == "play_again":
-                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight)
+                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
                 return
 
         draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0)
