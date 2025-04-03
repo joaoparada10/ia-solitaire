@@ -168,7 +168,7 @@ def game_over_screen(score, moves, solve_time, reason="time_up"):
 
 
 # --- DFS Integration ---
-def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max_useless=10):
+def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
     solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
     return solution
@@ -384,7 +384,7 @@ def game_loop(difficulty=13, game_duration=12):
         pygame.display.flip()
         clock.tick(60)
 
-def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=10, weight=1.5):
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=MAX_USELESS_MOVES, weight=1.5):
     deck = create_deck(difficulty)
     tableau = deal_cards(deck, difficulty)
     foundations = {suit: [] for suit in SUITS}
@@ -804,7 +804,7 @@ def ai_options_menu():
     algorithm_index = 0
     difficulty = 13
     duration = 12
-    max_useless = 10  # Default value for DFS
+    max_useless = MAX_USELESS_MOVES  # Default value for DFS
     display_mode = True
     weight = 1.5  # Default weight for Weighted A*
 
@@ -856,7 +856,7 @@ def ai_options_menu():
 
         # Max useless moves (for DFS)
         if algorithm_options[algorithm_index] == "DFS":
-            useless_text = font.render(f"Max Useless Moves: {max_useless}", True, TEXT_COLOR)
+            useless_text = font.render(f"Useless Moves: {max_useless}", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 380, 200, 40))
             screen.blit(useless_text, (WIDTH//2 - useless_text.get_width()//2, 385))
             useless_decr_text = font.render("-", True, TEXT_COLOR)
