@@ -27,7 +27,7 @@ def format_time(milliseconds):
     seconds = milliseconds // 1000
     minutes = seconds // 60
     seconds = seconds % 60
-    return f"{minutes:02}:{seconds:02}"
+    return f"{minutes:02}:{seconds:02}.{milliseconds % 1000 // 10:02}"
 
 def has_valid_moves(tableau, foundations):
     for source_col in tableau:

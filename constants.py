@@ -13,7 +13,7 @@ BUTTON_HOVER_COLOR = (100, 149, 237)
 TEXT_COLOR = (255, 255, 255)
 DOUBLE_CLICK_THRESHOLD = 400  # milliseconds
 SCORE_INCREMENT = 50
-MAX_USELESS_MOVES = 1000
+MAX_USELESS_MOVES = 800
 
 SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
 RANKS = ['ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']

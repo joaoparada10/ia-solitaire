@@ -135,6 +135,8 @@ def game_over_screen(score, moves, solve_time, reason="time_up"):
             game_over_text = font.render("No valid moves left! Game over.", True, TEXT_COLOR)
         elif reason == "repeating_moves":
             game_over_text = font.render("Repeated moves detected! Game over.", True, TEXT_COLOR)
+        elif reason == "user_won":
+            game_over_text = font.render("Congratulations! You won!", True, TEXT_COLOR)
         else:
             game_over_text = font.render("Game over.", True, TEXT_COLOR)
         screen.blit(game_over_text, (WIDTH//2 - game_over_text.get_width()//2, HEIGHT//2 - 100))
@@ -161,38 +163,7 @@ def game_over_screen(score, moves, solve_time, reason="time_up"):
                     if rect.collidepoint(event.pos):
                         return "menu" if text == "Return to Menu" else "play_again"
 
-def winning_screen(score, moves, solve_time):
-    win_running = True
-    buttons = {
-        "Return to Menu": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 70, 200, 50),
-        "Play Again": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 140, 200, 50)
-    }
-    while win_running:
-        screen.fill(BACKGROUND_COLOR)
-        win_text = font.render("Congratulations! You won!", True, TEXT_COLOR)
-        screen.blit(win_text, (WIDTH//2 - win_text.get_width()//2, HEIGHT//2 - 100))
-        score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
-        moves_text = font.render(f"Moves: {moves}", True, TEXT_COLOR)
-        time_text = font.render(f"Time: {format_time(solve_time)}", True, TEXT_COLOR)
-        screen.blit(score_text, (WIDTH//2 - score_text.get_width()//2, HEIGHT//2 - 50))
-        screen.blit(moves_text, (WIDTH//2 - moves_text.get_width()//2, HEIGHT//2 - 20))
-        screen.blit(time_text, (WIDTH//2 - time_text.get_width()//2, HEIGHT//2 + 10))
-        for text, rect in buttons.items():
-            mouse_pos = pygame.mouse.get_pos()
-            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
-            pygame.draw.rect(screen, color, rect)
-            label = font.render(text, True, TEXT_COLOR)
-            label_rect = label.get_rect(center=rect.center)
-            screen.blit(label, label_rect)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for text, rect in buttons.items():
-                    if rect.collidepoint(event.pos):
-                        return "menu" if text == "Return to Menu" else "play_again"
+
 
 # --- DFS Integration ---
 def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max_useless=10):
@@ -256,7 +227,7 @@ def game_loop(difficulty=13, game_duration=12):
 
         if check_win(tableau):
             running = False
-            action = winning_screen(score, moves_count, elapsed_time)
+            action = game_over_screen(score, moves_count, elapsed_time, reason="user_won")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
@@ -483,6 +454,9 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
         print("DFS run time (ms):", runtime)
         if solution:
             print("DFS solution found:", solution)
+
+            # Set duration based on display_mode:
+            duration_val = 1000 if display_mode else 10  # 1 sec in slow mode, 10ms in fast mode
             # For each move in the solution, animate it.
             for move in solution:
                 if move[0] == "to_foundation":
@@ -498,8 +472,6 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         # (Assuming foundation positions are computed as in draw_table)
                         foundation_index = SUITS.index(card.suit)
                         target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
-                        # Set duration based on display_mode:
-                        duration_val = 1000 if display_mode else 10  # 1 sec in slow mode, 10ms in fast mode
                         animate_move(card, start_pos, target_pos, duration=duration_val, 
                                     draw_func=draw_table, clock=clock,
                                     extra_draw_args=(screen, tableau, foundations,
@@ -524,7 +496,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         # Determine target position in the target column.
                         target_x = SPACING_X * tgt_index + 20
                         target_y = TABLEAU_Y + len(tableau[tgt_index]) * 30
-                        animate_move(card, start_pos, (target_x, target_y), duration=1000,
+                        animate_move(card, start_pos, (target_x, target_y), duration=duration_val,
                                     draw_func=draw_table, clock=clock,
                                     extra_draw_args=(screen, tableau, foundations,
                                                     max(total_time - (pygame.time.get_ticks() - start_time), 0),
@@ -535,7 +507,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
 
                 # Update positions after each move (optional if animate_move fully controls card positions).
                 update_positions(tableau)
-            winning_screen(score, moves_count, runtime)
+            game_over_screen(score, moves_count, runtime, reason="user_won")
         else:
             main_menu()
         return
@@ -559,7 +531,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
 
         if check_win(tableau):
             running = False
-            action = winning_screen(score, moves_count, elapsed_time)
+            action = game_over_screen(score, moves_count, elapsed_time, reason="user_won")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
@@ -905,74 +877,3 @@ def ai_options_menu():
                     options_running = False
                     main_menu()
 
-# --- Start the Game ---
-def main_menu():
-    menu_running = True
-    buttons = {
-        "Play": pygame.Rect(WIDTH//2 - 100, 200, 200, 50),
-        "Options": pygame.Rect(WIDTH//2 - 100, 270, 200, 50),
-        "Help": pygame.Rect(WIDTH//2 - 100, 340, 200, 50),
-        "Exit": pygame.Rect(WIDTH//2 - 100, 410, 200, 50)
-    }
-    while menu_running:
-        screen.fill(BACKGROUND_COLOR)
-        for text, rect in buttons.items():
-            mouse_pos = pygame.mouse.get_pos()
-            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
-            pygame.draw.rect(screen, color, rect)
-            label = font.render(text, True, TEXT_COLOR)
-            label_rect = label.get_rect(center=rect.center)
-            screen.blit(label, label_rect)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for text, rect in buttons.items():
-                    if rect.collidepoint(event.pos):
-                        if text == "Play":
-                            player_mode_menu()
-                        elif text == "Options":
-                            options_menu()
-                        elif text == "Help":
-                            help_menu()
-                        elif text == "Exit":
-                            pygame.quit()
-                            sys.exit()
-
-# --- Entry for Player Mode ---
-def player_mode_menu():
-    mode_running = True
-    buttons = {
-        "Human": pygame.Rect(WIDTH//2 - 100, 250, 200, 50),
-        "AI": pygame.Rect(WIDTH//2 - 100, 320, 200, 50),
-        "Return": pygame.Rect(WIDTH//2 - 100, 390, 200, 50)
-    }
-    while mode_running:
-        screen.fill(BACKGROUND_COLOR)
-        title = font.render("Select Player Mode", True, TEXT_COLOR)
-        screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
-        for text, rect in buttons.items():
-            mouse_pos = pygame.mouse.get_pos()
-            color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
-            pygame.draw.rect(screen, color, rect)
-            label = font.render(text, True, TEXT_COLOR)
-            label_rect = label.get_rect(center=rect.center)
-            screen.blit(label, label_rect)
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                for text, rect in buttons.items():
-                    if rect.collidepoint(event.pos):
-                        if text == "Human":
-                            human_options_menu()
-                        elif text == "AI":
-                            ai_options_menu()
-                        elif text == "Return":
-                            main_menu()
-                        mode_running = False
-                        break
