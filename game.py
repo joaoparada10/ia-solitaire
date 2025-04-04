@@ -546,7 +546,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             main_menu()
         return
     
-    if algorithm == "Greedy":
+    elif algorithm == "Greedy":
         # Display the initial state and a message that Greedy is searching
         draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
         searching_text = font.render("AI is searching for a solution...", True, TEXT_COLOR)
