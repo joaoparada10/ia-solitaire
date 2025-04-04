@@ -76,3 +76,10 @@ class SolitaireState:
         tableau_str = "\n".join(f"Column {i}: {[c.rank for c in col]}" 
                                for i, col in enumerate(self.tableau))
         return f"Foundations:\n{foundation_str}\n\nTableau:\n{tableau_str}"
+    
+    def tableau_size(self):
+        """
+        Returns the total number of cards in the tableau.
+        This is a simple helper that sums the lengths of each column.
+        """
+        return sum(len(col) for col in self.tableau)

@@ -69,7 +69,7 @@ class AStarSolver:
 def improved_heuristic(state):
     
     # 1. Count of remaining cards in tableau (highest priority factor)
-    remaining_cards = sum(len(col) for col in state.tableau)
+    remaining_cards = state.tableau_size()
 
     # 2. Blocked cards: All cards except the topmost in each column
     blocked_cards = sum(len(col) - 1 for col in state.tableau if len(col) > 1)

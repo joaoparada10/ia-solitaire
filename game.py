@@ -4,11 +4,12 @@ import random
 import copy
 from constants import *
 from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move, get_hint
-from dfs_solver import dfs
+from dfs_solver import dfs, dfs_improved
 from astar_solver import AStarSolver
 from weighted_astar_solver import WeightedAStarSolver
 from greedy import greedy
 from class_solitaire_state import SolitaireState
+from iterative_deepening_solver import iterative_deepening
 import threading
 dfs_cancel_event = threading.Event()
 
@@ -196,6 +197,18 @@ def game_over_screen(score, moves, solve_time, reason):
 def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
     solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    return solution
+
+def run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
+    initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
+    solution, useless = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    return solution
+
+
+# --- Iterative Deepening Integration ---
+def run_itd_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
+    initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
+    solution, useless = iterative_deepening(initial_state, depth_limit, max_useless, cancel_event)
     return solution
 
 # --- Greedy Integration ---
@@ -468,7 +481,7 @@ def game_loop(difficulty=13, game_duration=12, tableau=None):
         pygame.display.flip()
         clock.tick(60)
 
-def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=MAX_USELESS_MOVES, weight=1.5,tableau=None):
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, depth_limit, weight=1.5,tableau=None):
     if tableau == None:
         deck = create_deck(difficulty)
         tableau = deal_cards(deck, difficulty)
@@ -482,7 +495,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
     dfs_cancel_event = threading.Event()
     recent_moves = []
     
-    if algorithm in ["DFS", "A*", "Weighted A*"]:
+    if algorithm in ["DFS", "DFS Improved", "Iterative Deepening", "A*", "Weighted A*"]:
         # Draw initial state
         draw_table(screen, tableau, foundations, total_time, score, undo_count=0, is_human=False)
         
@@ -502,7 +515,12 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
             
             if algorithm == "DFS":
-                solution = run_dfs_solver(tableau, foundations, depth_limit=800, 
+                solution = run_dfs_solver(tableau, foundations, depth_limit, 
+                                         cancel_event=dfs_cancel_event, max_useless=max_useless)
+            elif algorithm == "DFS Improved":
+                solution = run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=dfs_cancel_event, max_useless=max_useless)
+            elif algorithm == "Iterative Deepening":
+                solution = run_itd_solver(tableau, foundations, depth_limit, 
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "A*":
                 solver = AStarSolver(initial_state)
@@ -1017,164 +1035,177 @@ def human_options_menu(tableau=None):
                     main_menu()
 
 def ai_options_menu(tableau=None):
+    import pygame
+    from constants import MAX_USELESS_MOVES, WIDTH, HEIGHT, BACKGROUND_COLOR, BUTTON_COLOR, TEXT_COLOR
+    from game import ai_game_loop, main_menu
+
     options_running = True
-    algorithm_options = ["Simple", "Random", "DFS", "A*", "Weighted A*", "Greedy"]
+    algorithm_options = ["Simple", "Random", "DFS", "DFS Improved", "Iterative Deepening", "A*", "Weighted A*", "Greedy"]
     algorithm_index = 0
     difficulty = 13
     duration = 12
-    max_useless = MAX_USELESS_MOVES  # Default value for DFS
+    max_useless = MAX_USELESS_MOVES 
+    depth_limit = DEPTH_LIMIT
     display_mode = True
-    weight = 1.5  # Default weight for Weighted A*
+    weight = 1.5                    # Default for Weighted A*
 
-    # Rectangle definitions
-    algo_rect = pygame.Rect(WIDTH//2 - 150, 200, 300, 40)
-    diff_rect_decr = pygame.Rect(WIDTH//2 - 150, 260, 50, 40)
-    diff_rect_incr = pygame.Rect(WIDTH//2 + 100, 260, 50, 40)
-    duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 320, 50, 40)
-    duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 320, 50, 40)
-    useless_rect_decr = pygame.Rect(WIDTH//2 - 150, 380, 50, 40)
-    useless_rect_incr = pygame.Rect(WIDTH//2 + 100, 380, 50, 40)
-    display_rect = pygame.Rect(WIDTH//2 - 150, 440, 300, 40)
-    weight_rect_decr = pygame.Rect(WIDTH//2 - 150, 500, 50, 40)
-    weight_rect_incr = pygame.Rect(WIDTH//2 + 100, 500, 50, 40)
-    start_rect = pygame.Rect(WIDTH//2 - 100, 570, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 640, 200, 50)
+    # Helper function to draw a numeric control
+    def draw_numeric_control(label, value, center_rect, minus_rect, plus_rect):
+        control_text = font.render(f"{label}: {value}", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, center_rect)
+        screen.blit(control_text, (center_rect.x + (center_rect.width - control_text.get_width()) // 2,
+                                   center_rect.y + (center_rect.height - control_text.get_height()) // 2))
+        minus_text = font.render("-", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, minus_rect)
+        screen.blit(minus_text, (minus_rect.x + (minus_rect.width - minus_text.get_width()) // 2,
+                                 minus_rect.y + (minus_rect.height - minus_text.get_height()) // 2))
+        plus_text = font.render("+", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, plus_rect)
+        screen.blit(plus_text, (plus_rect.x + (plus_rect.width - plus_text.get_width()) // 2,
+                                plus_rect.y + (plus_rect.height - plus_text.get_height()) // 2))
 
+    # Helper function to update a value when a plus or minus button is clicked.
+    # It uses a small step (step_small) when the value is low and a larger step (step_large) otherwise.
+    def update_value_on_click(pos, minus_rect, plus_rect, value, min_val, max_val, step_small, step_large):
+        if minus_rect.collidepoint(pos):
+            value -= step_large if value > step_large else step_small
+            if value < min_val:
+                value = min_val
+        elif plus_rect.collidepoint(pos):
+            value += step_large if value < max_val - step_large else step_small
+            if value > max_val:
+                value = max_val
+        return value
+
+    # Define control rectangles (using a consistent layout)
+    algo_rect   = pygame.Rect(WIDTH//2 - 150, 200, 300, 40)
+    
+    # Difficulty (if deck not already chosen)
+    diff_center = pygame.Rect(WIDTH//2 - 100, 260, 200, 40)
+    diff_minus  = pygame.Rect(WIDTH//2 - 150, 260, 50, 40)
+    diff_plus   = pygame.Rect(WIDTH//2 + 100, 260, 50, 40)
+    
+    # Duration control
+    dur_center  = pygame.Rect(WIDTH//2 - 100, 320, 200, 40)
+    dur_minus   = pygame.Rect(WIDTH//2 - 150, 320, 50, 40)
+    dur_plus    = pygame.Rect(WIDTH//2 + 100, 320, 50, 40)
+    
+    # For DFS and Iterative Deepening: max_useless control
+    mu_center   = pygame.Rect(WIDTH//2 - 100, 380, 200, 40)
+    mu_minus    = pygame.Rect(WIDTH//2 - 150, 380, 50, 40)
+    mu_plus     = pygame.Rect(WIDTH//2 + 100, 380, 50, 40)
+    
+    # New: Depth limit control for DFS/Iterative Deepening
+    dl_center   = pygame.Rect(WIDTH//2 - 100, 440, 200, 40)
+    dl_minus    = pygame.Rect(WIDTH//2 - 150, 440, 50, 40)
+    dl_plus     = pygame.Rect(WIDTH//2 + 100, 440, 50, 40)
+    
+    # Display mode toggle
+    display_rect = pygame.Rect(WIDTH//2 - 150, 500, 300, 40)
+    
+    # For Weighted A*: weight control
+    weight_center = pygame.Rect(WIDTH//2 - 100, 560, 200, 40)
+    weight_minus  = pygame.Rect(WIDTH//2 - 150, 560, 50, 40)
+    weight_plus   = pygame.Rect(WIDTH//2 + 100, 560, 50, 40)
+    
+    # Start and Return buttons
+    start_rect  = pygame.Rect(WIDTH//2 - 100, 620, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 690, 200, 50)
+    
     while options_running:
         screen.fill(BACKGROUND_COLOR)
         title = font.render("AI Options", True, TEXT_COLOR)
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 150))
-
-        # Algorithm selection
+        
+        # Algorithm selection (clicking this rectangle cycles through algorithms)
         algo_text = font.render(f"Algorithm: {algorithm_options[algorithm_index]}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, algo_rect)
         screen.blit(algo_text, (algo_rect.x + 10, algo_rect.y + 5))
-
-        # Difficulty selection
-        if tableau == None:
-            diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 260, 200, 40))
-            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 265))
-            diff_decr_text = font.render("-", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
-            screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
-            diff_incr_text = font.render("+", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
-            screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        
+        # Difficulty selection (only if no deck has been chosen yet)
+        if tableau is None:
+            draw_numeric_control("Cards per Suit", difficulty, diff_center, diff_minus, diff_plus)
         else:
-            diff_text = font.render(f"Deck already chosen!", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
-            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+            diff_text = font.render("Deck already chosen!", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_center)
+            screen.blit(diff_text, (diff_center.x + (diff_center.width - diff_text.get_width()) // 2,
+                                    diff_center.y + (diff_center.height - diff_text.get_height()) // 2))
+        
         # Duration selection
-        duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 320, 200, 40))
-        screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 325))
-        duration_decr_text = font.render("-", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_decr)
-        screen.blit(duration_decr_text, (duration_rect_decr.x + 15, duration_rect_decr.y + 5))
-        duration_incr_text = font.render("+", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
-        screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
-
-        # Max useless moves (for DFS)
-        if algorithm_options[algorithm_index] == "DFS":
-            useless_text = font.render(f"Useless Moves: {max_useless}", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 380, 200, 40))
-            screen.blit(useless_text, (WIDTH//2 - useless_text.get_width()//2, 385))
-            useless_decr_text = font.render("-", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, useless_rect_decr)
-            screen.blit(useless_decr_text, (useless_rect_decr.x + 15, useless_rect_decr.y + 5))
-            useless_incr_text = font.render("+", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, useless_rect_incr)
-            screen.blit(useless_incr_text, (useless_rect_incr.x + 15, useless_rect_incr.y + 5))
-
-        # Display mode
+        draw_numeric_control("Duration (min)", duration, dur_center, dur_minus, dur_plus)
+        
+        # For DFS and Iterative Deepening, show max_useless and depth_limit controls
+        if algorithm_options[algorithm_index] in ["DFS", "DFS Improved","Iterative Deepening"]:
+            draw_numeric_control("Useless Moves", max_useless, mu_center, mu_minus, mu_plus)
+            draw_numeric_control("Depth Limit", depth_limit, dl_center, dl_minus, dl_plus)
+        
+        # Display mode toggle button
         display_str = "Slow Mode (1 sec delay)" if display_mode else "Fast Mode (no delay)"
-        display_text = font.render(f"Display Mode: {display_str}", True, TEXT_COLOR)
+        disp_text = font.render(f"Display Mode: {display_str}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, display_rect)
-        screen.blit(display_text, (display_rect.x + 10, display_rect.y + 5))
-
-        # Weight parameter (for Weighted A*)
+        screen.blit(disp_text, (display_rect.x + (display_rect.width - disp_text.get_width()) // 2,
+                                display_rect.y + (display_rect.height - disp_text.get_height()) // 2))
+        
+        # For Weighted A*, show weight control
         if algorithm_options[algorithm_index] == "Weighted A*":
-            weight_text = font.render(f"Heuristic Weight: {weight:.1f}", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 500, 200, 40))
-            screen.blit(weight_text, (WIDTH//2 - weight_text.get_width()//2, 505))
-            weight_decr_text = font.render("-", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, weight_rect_decr)
-            screen.blit(weight_decr_text, (weight_rect_decr.x + 15, weight_rect_decr.y + 5))
-            weight_incr_text = font.render("+", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, weight_rect_incr)
-            screen.blit(weight_incr_text, (weight_rect_incr.x + 15, weight_rect_incr.y + 5))
-
+            draw_numeric_control("Heuristic Weight", f"{weight:.1f}", weight_center, weight_minus, weight_plus)
+        
         # Start and Return buttons
         start_text = font.render("Start Game", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
-        screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
-        return_text = font.render("Return", True, TEXT_COLOR)
+        screen.blit(start_text, (start_rect.x + (start_rect.width - start_text.get_width()) // 2,
+                                 start_rect.y + (start_rect.height - start_text.get_height()) // 2))
+        ret_text = font.render("Return", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
-        screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
-
+        screen.blit(ret_text, (return_rect.x + (return_rect.width - ret_text.get_width()) // 2,
+                               return_rect.y + (return_rect.height - ret_text.get_height()) // 2))
+        
         pygame.display.flip()
-
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if algo_rect.collidepoint(event.pos):
+                pos = event.pos
+                if algo_rect.collidepoint(pos):
                     algorithm_index = (algorithm_index + 1) % len(algorithm_options)
-                elif diff_rect_decr.collidepoint(event.pos):
-                    if difficulty > 4:
-                        difficulty -= 1
-                elif diff_rect_incr.collidepoint(event.pos):
-                    if difficulty < 13:
-                        difficulty += 1
-                elif duration_rect_decr.collidepoint(event.pos):
-                    if duration > 1:
-                        duration -= 1
-                elif duration_rect_incr.collidepoint(event.pos):
-                    duration += 1
-                elif algorithm_options[algorithm_index] == "DFS" and useless_rect_decr.collidepoint(event.pos):
-                    if max_useless > 11:
-                        max_useless -= 10
-                    elif max_useless > 1:
-                        max_useless -= 1
-                elif algorithm_options[algorithm_index] == "DFS" and useless_rect_incr.collidepoint(event.pos):
-                    if max_useless < MAX_USELESS_MOVES - 11:
-                        max_useless += 10
-                    elif max_useless < MAX_USELESS_MOVES:
-                        max_useless += 1
-                elif display_rect.collidepoint(event.pos):
+                elif diff_minus.collidepoint(pos) and tableau is None:
+                    difficulty = update_value_on_click(pos, diff_minus, diff_plus, difficulty, 4, 13, 1, 1)
+                elif diff_plus.collidepoint(pos) and tableau is None:
+                    difficulty = update_value_on_click(pos, diff_minus, diff_plus, difficulty, 4, 13, 1, 1)
+                elif dur_minus.collidepoint(pos):
+                    duration = update_value_on_click(pos, dur_minus, dur_plus, duration, 1, 120, 1, 5)
+                elif dur_plus.collidepoint(pos):
+                    duration = update_value_on_click(pos, dur_minus, dur_plus, duration, 1, 120, 1, 5)
+                elif algorithm_options[algorithm_index] in ["DFS", "DFS Improved", "Iterative Deepening"]:
+                    if mu_minus.collidepoint(pos):
+                        max_useless = update_value_on_click(pos, mu_minus, mu_plus, max_useless, 1, MAX_USELESS_MOVES, 1, 10)
+                    elif mu_plus.collidepoint(pos):
+                        max_useless = update_value_on_click(pos, mu_minus, mu_plus, max_useless, 1, MAX_USELESS_MOVES, 1, 10)
+                    elif dl_minus.collidepoint(pos):
+                        depth_limit = update_value_on_click(pos, dl_minus, dl_plus, depth_limit, 1, 1000, 1, 10)
+                    elif dl_plus.collidepoint(pos):
+                        depth_limit = update_value_on_click(pos, dl_minus, dl_plus, depth_limit, 1, 1000, 1, 10)
+                if display_rect.collidepoint(pos):
                     display_mode = not display_mode
-                elif algorithm_options[algorithm_index] == "Weighted A*" and weight_rect_decr.collidepoint(event.pos):
-                    if weight > 1.0:
-                        weight -= 0.1
-                elif algorithm_options[algorithm_index] == "Weighted A*" and weight_rect_incr.collidepoint(event.pos):
-                    if weight < 5.0:
-                        weight += 0.1
-                elif start_rect.collidepoint(event.pos):
+                if algorithm_options[algorithm_index] == "Weighted A*":
+                    if weight_minus.collidepoint(pos):
+                        weight = max(1.0, round(weight - 0.1, 1))
+                    elif weight_plus.collidepoint(pos):
+                        weight = min(5.0, round(weight + 0.1, 1))
+                if start_rect.collidepoint(pos):
                     options_running = False
-                    if tableau != None:
-
-                        ai_game_loop(
-                            algorithm=algorithm_options[algorithm_index],
-                            difficulty=len(tableau),
-                            game_duration=duration,
-                            display_mode=display_mode,
-                            max_useless=max_useless,
-                            weight=weight,
-                            tableau=tableau
-                        )
-                    else:
-                        ai_game_loop(
-                            algorithm=algorithm_options[algorithm_index],
-                            difficulty=difficulty,
-                            game_duration=duration,
-                            display_mode=display_mode,
-                            max_useless=max_useless,
-                            weight=weight,
-                            tableau=tableau
-                        )
-                elif return_rect.collidepoint(event.pos):
+                    ai_game_loop(
+                        algorithm=algorithm_options[algorithm_index],
+                        difficulty=(len(tableau) if tableau is not None else difficulty),
+                        game_duration=duration,
+                        display_mode=display_mode,
+                        max_useless=max_useless,
+                        depth_limit=depth_limit,  # new parameter passed here
+                        weight=weight,
+                        tableau=tableau
+                    )
+                elif return_rect.collidepoint(pos):
                     options_running = False
                     main_menu()
