@@ -4,9 +4,11 @@ import random
 import copy
 from constants import *
 from helpers import load_card_images, format_time, is_valid_move, is_valid_foundation_move, has_valid_moves, check_win, update_positions, animate_move
-from dfs_solver import dfs, SolitaireState
+from dfs_solver import dfs
 from astar_solver import AStarSolver
 from weighted_astar_solver import WeightedAStarSolver
+from greedy import greedy
+from class_solitaire_state import SolitaireState
 import threading
 dfs_cancel_event = threading.Event()
 
@@ -173,7 +175,11 @@ def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max
     solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
     return solution
 
-
+# --- Greedy Integration ---
+def run_greedy_solver(tableau, foundations, cancel_event=None):
+    initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
+    solution = greedy(initial_state, set(), cancel_event=cancel_event)
+    return solution
 
 # --- AI and Human Game Loops & Menus ---
 def compute_ai_move(tableau, foundations, algorithm):
@@ -537,7 +543,124 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             main_menu()
         return
     
-    # Existing code for Simple and Random algorithms
+    elif algorithm == "Greedy":
+        # Display the initial state and a message that Greedy is searching
+        draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
+        searching_text = font.render("AI is searching for a solution...", True, TEXT_COLOR)
+        screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
+        give_up_rect = pygame.Rect(WIDTH - 200, HEIGHT - 50, 180, 40)
+        pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
+        give_up_text = font.render("Give Up", True, TEXT_COLOR)
+        screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
+        pygame.display.flip()
+
+        # Run Greedy in a separate thread.
+        solution_container = {}  # Use a dict to store the solution result
+        def greedy_thread():
+            solution = run_greedy_solver(tableau=tableau, foundations=foundations, cancel_event=dfs_cancel_event)
+
+            solution_container['solution'] = solution
+
+        thread = threading.Thread(target=greedy_thread)
+        thread.start()
+
+        # Now enter a loop that updates the display and checks for "Give up"
+        searching = True
+        while searching:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    dfs_cancel_event.set()
+                    pygame.quit()
+                    sys.exit()
+                elif event.type == pygame.MOUSEBUTTONDOWN:
+                    if give_up_rect.collidepoint(event.pos):
+                        # User clicked "Give up"
+                        dfs_cancel_event.set()
+                        searching = False
+                        main_menu()
+                        return
+
+            #update runtime info on screen:
+            current_time = pygame.time.get_ticks()
+            elapsed = current_time - start_time
+            runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
+            # Redraw background, initial state, and runtime:
+            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
+            screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
+            screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
+            pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
+            screen.blit(give_up_text, (give_up_rect.x + 10, give_up_rect.y + 5))
+            pygame.display.flip()
+            clock.tick(30)
+
+            # If the Greedy thread is finished, break out of the loop.
+            if not thread.is_alive():
+                searching = False
+
+        # Once Greedy thread finishes, check if we have a solution.
+        solution = solution_container.get('solution', None)
+        runtime = pygame.time.get_ticks() - start_time
+        print("Greedy run time (ms):", runtime)
+        if solution is not None:
+            print("Greedy solution found:", solution)
+            # For each move in the solution, animate it.
+            for move in solution:
+                if move[0] == "to_foundation":
+                    src_index = move[1]
+                    card = None
+                    for c in tableau[src_index]:
+                        if c.rank == move[2] and c.suit == move[3]:
+                            card = c
+                            break
+                    if card is not None:
+                        start_pos = (card.rect.x, card.rect.y)
+                        # Determine target position in the foundation.
+                        # (Assuming foundation positions are computed as in draw_table)
+                        foundation_index = SUITS.index(card.suit)
+                        target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
+                        # Set duration based on display_mode:
+                        duration_val = 1000 if display_mode else 10  # 1 sec in slow mode, 10ms in fast mode
+                        animate_move(card, start_pos, target_pos, duration=duration_val, 
+                                    draw_func=draw_table, clock=clock,
+                                    extra_draw_args=(screen, tableau, foundations,
+                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                                    score, 0))
+
+                        tableau[src_index].pop()
+                        foundations[card.suit].append(card)
+                        score += SCORE_INCREMENT
+                        moves_count += 1
+
+                elif move[0] == "to_tableau":
+                    src_index = move[1]
+                    tgt_index = move[2]
+                    card = None
+                    for c in tableau[src_index]:
+                        if c.rank == move[3] and c.suit == move[4]:
+                            card = c
+                            break
+                    if card is not None:
+                        start_pos = (card.rect.x, card.rect.y)
+                        # Determine target position in the target column.
+                        target_x = SPACING_X * tgt_index + 20
+                        target_y = TABLEAU_Y + len(tableau[tgt_index]) * 30
+                        animate_move(card, start_pos, (target_x, target_y), duration=1000,
+                                    draw_func=draw_table, clock=clock,
+                                    extra_draw_args=(screen, tableau, foundations,
+                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                                                    score, 0))
+                        tableau[src_index].pop()
+                        tableau[tgt_index].append(card)
+                        moves_count += 1
+
+                # Update positions after each move (optional if animate_move fully controls card positions).
+                update_positions(tableau)
+            action = game_over_screen(score, moves_count, runtime, reason="user_won")
+        else:
+            print("Could not find solution.")
+            main_menu()
+        return
+
     running = True
     while running:
         for event in pygame.event.get():
@@ -710,7 +833,7 @@ def help_menu():
                 sys.exit()
             elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 help_running = False
-                
+
 def player_mode_menu():
     mode_running = True
     buttons = {
@@ -810,7 +933,7 @@ def human_options_menu():
 
 def ai_options_menu():
     options_running = True
-    algorithm_options = ["Simple", "Random", "DFS", "A*", "Weighted A*"]
+    algorithm_options = ["Simple", "Random", "DFS", "A*", "Weighted A*", "Greedy"]
     algorithm_index = 0
     difficulty = 13
     duration = 12
@@ -948,4 +1071,3 @@ def ai_options_menu():
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
-
