@@ -465,8 +465,8 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human"):
                     game_loop(difficulty, game_duration)
                 return
 
-        # Auto-hide hint after 5 seconds
-        if hint_active and pygame.time.get_ticks() - hint_timer > 5000:
+        # Auto-hide hint after 3 seconds
+        if hint_active and pygame.time.get_ticks() - hint_timer > 3000:
             hint_active = False
             hint_card = None
 
@@ -590,10 +590,10 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
                         duration_val = 1000 if display_mode else 10
                         animate_move(card, start_pos, target_pos, duration=duration_val, 
-                                    draw_func=draw_table, clock=clock,
-                                    extra_draw_args=(screen, tableau, foundations,
-                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                                    score, 0))
+            draw_func=draw_table, clock=clock,
+            extra_draw_args=(screen, tableau, foundations,
+                           max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                           score, 0, False, None, False))  # hint_active=False, hint_card=None, is_human=False
 
                         tableau[src_index].pop()
                         foundations[card.suit].append(card)
@@ -612,11 +612,11 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         start_pos = (card.rect.x, card.rect.y)
                         target_x = SPACING_X * tgt_index + 20
                         target_y = TABLEAU_Y + len(tableau[tgt_index]) * 30
-                        animate_move(card, start_pos, (target_x, target_y), duration=1000,
-                                    draw_func=draw_table, clock=clock,
-                                    extra_draw_args=(screen, tableau, foundations,
-                                                    max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                                    score, 0))
+                        animate_move(card, start_pos, target_pos, duration=duration_val, 
+            draw_func=draw_table, clock=clock,
+            extra_draw_args=(screen, tableau, foundations,
+                           max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                           score, 0, False, None, False))  # hint_active=False, hint_card=None, is_human=False
                         tableau[src_index].pop()
                         tableau[tgt_index].append(card)
                         moves_count += 1
@@ -682,11 +682,11 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             foundation_index = SUITS.index(card.suit)
             start_pos = (card.rect.x, card.rect.y)
             target_pos = (WIDTH - (4 - foundation_index) * SPACING_X, FOUNDATION_Y)
-            animate_move(card, start_pos, target_pos, duration_val,
-                        draw_func=draw_table, clock=clock,
-                        extra_draw_args=(screen, tableau, foundations,
-                                        max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                        score, 0))
+            animate_move(card, start_pos, target_pos, duration=duration_val, 
+            draw_func=draw_table, clock=clock,
+            extra_draw_args=(screen, tableau, foundations,
+                           max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                           score, 0, False, None, False))  # hint_active=False, hint_card=None, is_human=False
             source_col.pop()
             foundations[card.suit].append(card)
             score += SCORE_INCREMENT
@@ -699,11 +699,11 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             start_pos = (card.rect.x, card.rect.y)
             target_pos = (SPACING_X * tgt_index + 20, TABLEAU_Y + len(target) * 30)
             
-            animate_move(card, start_pos, target_pos, duration_val,
-                        draw_func=draw_table, clock=clock,
-                        extra_draw_args=(screen, tableau, foundations,
-                                        max(total_time - (pygame.time.get_ticks() - start_time), 0),
-                                        score, 0))
+            animate_move(card, start_pos, target_pos, duration=duration_val, 
+            draw_func=draw_table, clock=clock,
+            extra_draw_args=(screen, tableau, foundations,
+                           max(total_time - (pygame.time.get_ticks() - start_time), 0),
+                           score, 0, False, None, False))  # hint_active=False, hint_card=None, is_human=False
             source_col.pop()
             target.append(card)
             moves_count += 1
