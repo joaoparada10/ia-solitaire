@@ -14,6 +14,7 @@ TEXT_COLOR = (255, 255, 255)
 DOUBLE_CLICK_THRESHOLD = 400  # milliseconds
 SCORE_INCREMENT = 50
 MAX_USELESS_MOVES = 500
+HINT_COLOR = (255, 255, 0)  # Yellow
 
 SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
 RANKS = ['ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
