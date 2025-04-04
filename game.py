@@ -92,7 +92,7 @@ def deal_cards(deck, difficulty=13):
 
 # --- Drawing ---
 def draw_table(screen, tableau, foundations, remaining_time, score, undo_count, 
-              hint_active=False, hint_card=None, is_human=True):  # Add is_human parameter
+              hint_active=False, hint_card=None, is_human=False):
     screen.fill(BACKGROUND_COLOR)
     for i, col in enumerate(tableau):
         x = SPACING_X * i + 20
@@ -145,7 +145,7 @@ def draw_table(screen, tableau, foundations, remaining_time, score, undo_count,
     return hint_button_rect  # Return the rect for click detection (None in AI mode)
 
 # --- End Game Screens ---
-def game_over_screen(score, moves, solve_time, reason, initial_tableau=None):
+def game_over_screen(score, moves, solve_time, reason):
     game_over_running = True
     buttons = {
         "Return to Menu": pygame.Rect(WIDTH//2 - 100, HEIGHT//2 + 70, 200, 50),
@@ -220,11 +220,12 @@ def compute_ai_move(tableau, foundations, algorithm):
                     return ("to_tableau", card, source_col, target_col)
     return None
 
-def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None):
-    deck = create_deck(difficulty)
+def game_loop(difficulty=13, game_duration=12, tableau=None):
     if tableau == None:
+        deck = create_deck(difficulty)
+
         tableau = deal_cards(deck, difficulty)
-    initial_tableau = tableau
+    initial_tableau = copy.deepcopy(tableau)
     foundations = {suit: [] for suit in SUITS}
     running = True
     selected_card = None
@@ -247,7 +248,6 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
     hint_active = False
     hint_card = None
     hint_timer = 0
-    is_human = player_mode  # Flag to check if human mode
 
     while running:
         elapsed_time = pygame.time.get_ticks() - start_time
@@ -256,29 +256,29 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
         # Check win/lose conditions
         if remaining_time <= 0:
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, "time_up", initial_tableau)
+            action = game_over_screen(score, moves_count, elapsed_time, "time_up")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration,initial_tableau)
+                player_mode_menu(initial_tableau)
             return
 
         if check_win(tableau):
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, "user_won",initial_tableau)
+            action = game_over_screen(score, moves_count, elapsed_time, "user_won")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration,initial_tableau)
+                player_mode_menu(initial_tableau)
             return
 
         if not has_valid_moves(tableau, foundations):
             running = False
-            action = game_over_screen(score, moves_count, elapsed_time, "no_valid_moves",initial_tableau)
+            action = game_over_screen(score, moves_count, elapsed_time, "no_valid_moves")
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                game_loop(difficulty, game_duration,initial_tableau)
+                player_mode_menu(initial_tableau)
             return
 
         # Event handling
@@ -311,7 +311,7 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
                         undo_count -= 1
                 
                 # Hint button
-                if is_human and hint_button_rect and hint_button_rect.collidepoint(event.pos):
+                if hint_button_rect and hint_button_rect.collidepoint(event.pos):
                     hint = get_hint(tableau, foundations)
                     if hint:
                         hint_active = True
@@ -437,11 +437,11 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
             m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
             if m1 == m3 == m5 and m2 == m4 == m6:
                 running = False
-                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves",initial_tableau)
+                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves")
                 if action == "menu":
                     main_menu()
                 elif action == "play_again":
-                    game_loop(difficulty, game_duration)
+                    player_mode_menu(initial_tableau)
                 return
 
         # Auto-hide hint after 3 seconds
@@ -451,7 +451,7 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
 
         # Draw everything
         draw_table(screen, tableau, foundations, remaining_time, score, undo_count, 
-                            hint_active, hint_card, is_human)
+                            hint_active, hint_card,is_human=True)
         
         # Draw hint button (must be drawn after the cards)
         pygame.draw.rect(screen, BUTTON_COLOR, hint_button_rect)
@@ -466,10 +466,10 @@ def game_loop(difficulty=13, game_duration=12, player_mode="human", tableau=None
         clock.tick(60)
 
 def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless=MAX_USELESS_MOVES, weight=1.5,tableau=None):
-    deck = create_deck(difficulty)
     if tableau == None:
+        deck = create_deck(difficulty)
         tableau = deal_cards(deck, difficulty)
-    initial_tableau = tableau
+    initial_tableau = copy.deepcopy(tableau)
     foundations = {suit: [] for suit in SUITS}
     clock = pygame.time.Clock()
     start_time = pygame.time.get_ticks()
@@ -609,7 +609,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+                ai_options_menu(tableau=initial_tableau)
             return
             
         else:
@@ -618,7 +618,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
     
     elif algorithm == "Greedy":
         # Display the initial state and a message that Greedy is searching
-        draw_table(screen, tableau, foundations, total_time, score, undo_count=0)
+        draw_table(screen, tableau, foundations, total_time, score, undo_count=0, is_human=False)
         searching_text = font.render("AI is searching for a solution...", True, TEXT_COLOR)
         screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
         give_up_rect = pygame.Rect(WIDTH - 200, HEIGHT - 50, 180, 40)
@@ -658,7 +658,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             elapsed = current_time - start_time
             runtime_text = font.render(f"Run Time: {elapsed//1000} sec", True, TEXT_COLOR)
             # Redraw background, initial state, and runtime:
-            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0)
+            draw_table(screen, tableau, foundations, max(total_time - elapsed, 0), score, undo_count=0, is_human=False)
             screen.blit(searching_text, (WIDTH//2 - searching_text.get_width()//2, 80))
             screen.blit(runtime_text, (WIDTH//2 - runtime_text.get_width()//2, 120))
             pygame.draw.rect(screen, BUTTON_COLOR, give_up_rect)
@@ -757,7 +757,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+                ai_options_menu(tableau=initial_tableau)
             return
 
         if remaining_time <= 0 or not has_valid_moves(tableau, foundations):
@@ -767,7 +767,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+                ai_options_menu(tableau=initial_tableau)
             return
 
         move = compute_ai_move(tableau, foundations, algorithm)
@@ -777,7 +777,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             if action == "menu":
                 main_menu()
             elif action == "play_again":
-                ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+                ai_options_menu(tableau=initial_tableau)
             return
 
         duration_val = 1000 if display_mode else 10
@@ -820,11 +820,11 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             m1, m2, m3, m4, m5, m6 = recent_moves[-6:]
             if m1 == m3 == m5 and m2 == m4 == m6:
                 running = False
-                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves", initial_tableau)
+                action = game_over_screen(score, moves_count, elapsed_time,"repeating_moves")
                 if action == "menu":
                     main_menu()
                 elif action == "play_again":
-                    ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, weight,initial_tableau)
+                    ai_options_menu(tableau=initial_tableau)
                 return
 
         draw_table(screen, tableau, foundations, remaining_time, score, undo_count=0, is_human=False)
@@ -907,7 +907,7 @@ def help_menu():
             elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                 help_running = False
 
-def player_mode_menu():
+def player_mode_menu(tableau=None):
     mode_running = True
     buttons = {
         "Human": pygame.Rect(WIDTH//2 - 100, 250, 200, 50),
@@ -934,15 +934,15 @@ def player_mode_menu():
                 for text, rect in buttons.items():
                     if rect.collidepoint(event.pos):
                         if text == "Human":
-                            human_options_menu()
+                            human_options_menu(tableau)
                         elif text == "AI":
-                            ai_options_menu()
+                            ai_options_menu(tableau)
                         elif text == "Return":
                             main_menu()
                         mode_running = False
                         break
 
-def human_options_menu():
+def human_options_menu(tableau=None):
     options_running = True
     difficulty = 13
     duration = 12
@@ -956,15 +956,16 @@ def human_options_menu():
         screen.fill(BACKGROUND_COLOR)
         title = font.render("Human Options", True, TEXT_COLOR)
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 180))
-        diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
-        screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
-        diff_decr_text = font.render("-", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
-        screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
-        diff_incr_text = font.render("+", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
-        screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        if tableau == None:
+            diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
+            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+            diff_decr_text = font.render("-", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
+            screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+            diff_incr_text = font.render("+", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
+            screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 310, 200, 40))
         screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 315))
@@ -999,12 +1000,16 @@ def human_options_menu():
                     duration += 1
                 elif start_rect.collidepoint(event.pos):
                     options_running = False
-                    game_loop(difficulty, duration)
+                    if tableau != None:
+                        difficulty = len(tableau)
+                        game_loop(difficulty, duration,tableau)
+                    else: 
+                        game_loop(difficulty, duration,tableau)
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
 
-def ai_options_menu():
+def ai_options_menu(tableau=None):
     options_running = True
     algorithm_options = ["Simple", "Random", "DFS", "A*", "Weighted A*", "Greedy"]
     algorithm_index = 0
@@ -1039,15 +1044,16 @@ def ai_options_menu():
         screen.blit(algo_text, (algo_rect.x + 10, algo_rect.y + 5))
 
         # Difficulty selection
-        diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 260, 200, 40))
-        screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 265))
-        diff_decr_text = font.render("-", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
-        screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
-        diff_incr_text = font.render("+", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
-        screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        if tableau == None:
+            diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 260, 200, 40))
+            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 265))
+            diff_decr_text = font.render("-", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
+            screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+            diff_incr_text = font.render("+", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
+            screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
 
         # Duration selection
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
@@ -1119,10 +1125,15 @@ def ai_options_menu():
                 elif duration_rect_incr.collidepoint(event.pos):
                     duration += 1
                 elif algorithm_options[algorithm_index] == "DFS" and useless_rect_decr.collidepoint(event.pos):
-                    if max_useless > 1:
+                    if max_useless > 11:
+                        max_useless -= 10
+                    elif max_useless > 1:
                         max_useless -= 1
                 elif algorithm_options[algorithm_index] == "DFS" and useless_rect_incr.collidepoint(event.pos):
-                    max_useless += 1
+                    if max_useless < MAX_USELESS_MOVES - 11:
+                        max_useless += 10
+                    elif max_useless < MAX_USELESS_MOVES:
+                        max_useless += 1
                 elif display_rect.collidepoint(event.pos):
                     display_mode = not display_mode
                 elif algorithm_options[algorithm_index] == "Weighted A*" and weight_rect_decr.collidepoint(event.pos):
@@ -1133,14 +1144,27 @@ def ai_options_menu():
                         weight += 0.1
                 elif start_rect.collidepoint(event.pos):
                     options_running = False
-                    ai_game_loop(
-                        algorithm=algorithm_options[algorithm_index],
-                        difficulty=difficulty,
-                        game_duration=duration,
-                        display_mode=display_mode,
-                        max_useless=max_useless,
-                        weight=weight
-                    )
+                    if tableau != None:
+
+                        ai_game_loop(
+                            algorithm=algorithm_options[algorithm_index],
+                            difficulty=len(tableau),
+                            game_duration=duration,
+                            display_mode=display_mode,
+                            max_useless=max_useless,
+                            weight=weight,
+                            tableau=tableau
+                        )
+                    else:
+                        ai_game_loop(
+                            algorithm=algorithm_options[algorithm_index],
+                            difficulty=difficulty,
+                            game_duration=duration,
+                            display_mode=display_mode,
+                            max_useless=max_useless,
+                            weight=weight,
+                            tableau=tableau
+                        )
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
