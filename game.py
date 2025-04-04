@@ -161,7 +161,10 @@ def game_over_screen(score, moves, solve_time, reason):
             game_over_text = font.render("Repeated moves detected! Game over.", True, TEXT_COLOR)
         elif reason == "user_won":
             game_over_text = font.render("Congratulations! You won!", True, TEXT_COLOR)
+        elif reason == "no_solution":
+            game_over_text = font.render("No Solution Found.", True, TEXT_COLOR)
         else:
+        
             game_over_text = font.render("Game over.", True, TEXT_COLOR)
         screen.blit(game_over_text, (WIDTH//2 - game_over_text.get_width()//2, HEIGHT//2 - 100))
         score_text = font.render(f"Total Score: {score}", True, TEXT_COLOR)
@@ -190,7 +193,7 @@ def game_over_screen(score, moves, solve_time, reason):
 
 
 # --- DFS Integration ---
-def run_dfs_solver(tableau, foundations, depth_limit=100, cancel_event=None, max_useless=MAX_USELESS_MOVES):
+def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
     solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
     return solution
@@ -499,14 +502,14 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
             
             if algorithm == "DFS":
-                solution = run_dfs_solver(tableau, foundations, depth_limit=10000, 
+                solution = run_dfs_solver(tableau, foundations, depth_limit=800, 
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "A*":
                 solver = AStarSolver(initial_state)
-                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
             elif algorithm == "Weighted A*":
                 solver = WeightedAStarSolver(initial_state, weight=weight)
-                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
             
             solution_container['solution'] = solution
             if algorithm in ["A*", "Weighted A*"]:
@@ -526,7 +529,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                     if give_up_rect.collidepoint(event.pos):
                         dfs_cancel_event.set()
                         searching = False
-                        main_menu()
+                        ai_options_menu(initial_tableau)
                         return
 
             current_time = pygame.time.get_ticks()
@@ -613,7 +616,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             return
             
         else:
-            main_menu()
+            action = game_over_screen(score, moves_count, runtime,"no_solution")
         return
     
     elif algorithm == "Greedy":
@@ -650,7 +653,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         # User clicked "Give up"
                         dfs_cancel_event.set()
                         searching = False
-                        main_menu()
+                        ai_options_menu(initial_tableau)
                         return
 
             #update runtime info on screen:
@@ -731,7 +734,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             action = game_over_screen(score, moves_count, runtime, reason="user_won")
         else:
             print("Could not find solution.")
-            main_menu()
+            action = game_over_screen(score, moves_count, runtime, reason="no_solution")
         return
 
     running = True
@@ -966,6 +969,10 @@ def human_options_menu(tableau=None):
             diff_incr_text = font.render("+", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
             screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+        else:
+            diff_text = font.render(f"Deck already chosen!", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
+            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 310, 200, 40))
         screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 315))
@@ -1054,7 +1061,10 @@ def ai_options_menu(tableau=None):
             diff_incr_text = font.render("+", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
             screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
-
+        else:
+            diff_text = font.render(f"Deck already chosen!", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
+            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
         # Duration selection
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 320, 200, 40))
