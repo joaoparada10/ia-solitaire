@@ -453,6 +453,9 @@ def game_loop(difficulty=13, game_duration=12, tableau=None):
                     
                     if selected_card and not moved_to_foundation:
                         if target_col and is_valid_move(selected_card, target_col):
+                            old_top_card = target_col[-1]
+                            selected_card.rect.x = old_top_card.rect.x
+                            selected_card.rect.y = old_top_card.rect.y + 30
                             source_col.remove(selected_card)
                             target_col.append(selected_card)
                             moves_count += 1
@@ -544,10 +547,10 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "A*":
                 solver = AStarSolver(initial_state)
-                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
             elif algorithm == "Weighted A*":
                 solver = WeightedAStarSolver(initial_state, weight=weight)
-                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
             
             solution_container['solution'] = solution
             if algorithm in ["A*", "Weighted A*"]:
