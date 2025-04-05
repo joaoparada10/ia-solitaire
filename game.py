@@ -236,6 +236,27 @@ def compute_ai_move(tableau, foundations, algorithm, visited):
                     if target_col and is_valid_move(card, target_col):
                         return ("to_tableau", card, source_col, target_col), visited
         return None, visited
+    elif algorithm == "Random":
+        moves = []
+        for col in tableau:
+            if col:
+                card = col[-1]
+                for suit, foundation_pile in foundations.items():
+                    if is_valid_foundation_move(card, foundation_pile):
+                        moves.append(("to_foundation", card, col, foundation_pile))
+        for source_col in tableau:
+            if source_col:
+                card = source_col[-1]
+                for target_col in tableau:
+                    if source_col == target_col:
+                        continue
+                    if target_col and is_valid_move(card, target_col):
+                        moves.append(("to_tableau", card, source_col, target_col))
+        if moves:
+            chosen_move = random.choice(moves)
+            return chosen_move, visited
+        else:
+            return None, visited
     elif algorithm == "Greedy":
         current_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
         next_state, visited = greedy_real_time(current_state,visited)
