@@ -453,6 +453,9 @@ def game_loop(difficulty=13, game_duration=12, tableau=None):
                     
                     if selected_card and not moved_to_foundation:
                         if target_col and is_valid_move(selected_card, target_col):
+                            old_top_card = target_col[-1]
+                            selected_card.rect.x = old_top_card.rect.x
+                            selected_card.rect.y = old_top_card.rect.y + 30
                             source_col.remove(selected_card)
                             target_col.append(selected_card)
                             moves_count += 1
