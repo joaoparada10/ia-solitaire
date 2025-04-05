@@ -2,7 +2,7 @@ import copy
 from class_solitaire_state import SolitaireState
 
 def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_useless=20, counter=[0]):
-    # Print progress every 1000 nodes
+    # Print progress every 1000 nodes.
     counter[0] += 1
     if counter[0] % 1000 == 0:
         print(f"Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
@@ -23,15 +23,34 @@ def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_use
     current_h = heuristic(state)
     for successor in state.get_successors():
         new_h = heuristic(successor)
-        # If the successor does not improve the state (i.e. same or higher card count), increase useless_count.
-        new_useless = useless_count + 1 if new_h >= current_h else 0
+        # Determine if the successor's last move is a tableau move and get its useless flag.
+        move_is_useless = False
+        if successor.moves and successor.moves[-1][0] == "to_tableau":
+            # We expect the tableau move tuple to have an extra flag at index 5.
+            if len(successor.moves[-1]) >= 6:
+                move_is_useless = successor.moves[-1][5]
+
+        # Compute new_useless based on improvement and the useless flag.
+        if new_h < current_h:
+            new_useless = 0
+        else:
+            # new_h is not an improvement (i.e. equal or worse).
+            if successor.moves and successor.moves[-1][0] == "to_tableau":
+                # For tableau moves, if the move is non-useless, reset the counter; if useless, increment.
+                new_useless = 0 if not move_is_useless else useless_count + 1
+            else:
+                # For non-tableau moves (like moves to the foundation), assume they help and reset.
+                new_useless = 0
+
         if new_useless >= max_useless:
             # Prune this branch.
             continue
+
         result, returned_useless = dfs(successor, visited, depth_limit - 1,
                                          cancel_event, new_useless, max_useless, counter)
         if result is not None:
             return result, returned_useless
+
     return None, useless_count
 
 def heuristic(state):
@@ -41,8 +60,11 @@ def heuristic(state):
 
 def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0, max_useless=20, counter=[0]):
     """
-    An improved version of DFS that orders the successors based on the tableau size (or heuristic)
-    so that states with fewer cards are explored first.
+    Improved DFS that orders successors as follows:
+      - Priority 1: Moves that reduce the tableau size by exactly one are tried first.
+      - Priority 2: Among moves with equal reduction, non-useless tableau moves (i.e. moves that do not move a card
+                   that was on top of a card of rank x+1 onto another card of rank x+1) are preferred.
+      - Priority 3: Finally, states with a lower tableau size are prioritized.
     """
     counter[0] += 1
     if counter[0] % 1000 == 0:
@@ -62,16 +84,36 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
     visited.add(state_repr)
 
     current_h = heuristic(state)
-    # Order successors: states with a smaller tableau (i.e. lower heuristic value) are tried first.
     successors = state.get_successors()
-    current_h = heuristic(state)
-    ordered_successors = sorted(
-        successors,
-        key=lambda s: ((0 if heuristic(s) < current_h else 1), heuristic(s))
-    )
+    
+    def sort_key(s):
+        new_h = heuristic(s)
+        # Primary: Check if the move reduces tableau size by exactly one.
+        delta = current_h - new_h
+        primary = 0 if delta == 1 else 1
+        # Secondary: Determine if the last move is a tableau move and, if so, whether it is non-useless.
+        if s.moves:
+            last_move = s.moves[-1]
+            if last_move[0] == "to_tableau":
+                # Expecting the move tuple to have an extra flag at index 5.
+                # Non-useless move -> flag is False, so secondary key 0; otherwise 1.
+                secondary = 0 if len(last_move) >= 6 and not last_move[5] else 1
+            else:
+                secondary = 0  # For non-tableau moves, treat them as good.
+        else:
+            secondary = 0
+        # Tertiary: Lower tableau size is preferred.
+        return (primary, secondary, new_h)
+    
+    ordered_successors = sorted(successors, key=sort_key)
+
     for successor in ordered_successors:
-        new_h = heuristic(successor)
-        new_useless = useless_count + 1 if new_h >= current_h else 0
+        if successor.moves and successor.moves[-1][0] == "to_tableau":
+            move_is_useless = successor.moves[-1][5]  # This flag is set in get_successors
+            new_useless = useless_count + 1 if move_is_useless else 0
+        else:
+            # For non-tableau moves (like to_foundation moves), assume they’re beneficial.
+            new_useless = 0
         if new_useless >= max_useless:
             continue
         result, returned_useless = dfs_improved(successor, visited, depth_limit - 1,

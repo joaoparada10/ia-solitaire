@@ -1,5 +1,6 @@
 import copy
 from helpers import is_valid_move, is_valid_foundation_move
+from constants import RANK_VALUES
 
 class SolitaireState:
     def __init__(self, tableau, foundations, moves=None):
@@ -21,25 +22,22 @@ class SolitaireState:
 
     def get_successors(self):
         successors = []
-        # Determine the card that was moved last, if any.
         last_card_moved = None
         if self.moves:
             last_move = self.moves[-1]
-            # Our moves are tuples. For a "to_foundation" move, the tuple is:
-            # ("to_foundation", src_index, card.rank, card.suit)
-            # For a "to_tableau" move, it's:
-            # ("to_tableau", src_index, tgt_index, card.rank, card.suit)
+            # For a "to_foundation" move, the tuple is ("to_foundation", src_index, card.rank, card.suit)
+            # For a "to_tableau" move, it's ("to_tableau", src_index, tgt_index, card.rank, card.suit, [is_useless])
             if last_move[0] == "to_foundation":
                 last_card_moved = (last_move[2], last_move[3])
             elif last_move[0] == "to_tableau":
                 last_card_moved = (last_move[3], last_move[4])
-
-        # Always generate foundation moves.
+        
+        # --- Generate foundation moves ---
         for i, col in enumerate(self.tableau):
             if not col:
                 continue
             card = col[-1]
-            # If the last move moved the same card, skip this move.
+            # Skip if this is the same card as last moved.
             if last_card_moved and (card.rank, card.suit) == last_card_moved:
                 continue
             for suit, foundation in self.foundations.items():
@@ -49,11 +47,11 @@ class SolitaireState:
                     new_state.foundations[suit].append(card)
                     new_state.moves.append(("to_foundation", i, card.rank, card.suit))
                     successors.append(new_state)
-
-        # For tableau-to-tableau moves, we also check that the move does not move the same card.
+        
+        # --- Generate tableau-to-tableau moves ---
         for i, source in enumerate(self.tableau):
             if not source or len(source) < 2:
-                continue  # Can't uncover any card if there's only one.
+                continue  # Cannot move if there's only one card.
             card = source[-1]
             if last_card_moved and (card.rank, card.suit) == last_card_moved:
                 continue
@@ -61,12 +59,19 @@ class SolitaireState:
                 if i == j:
                     continue
                 if target and is_valid_move(card, target):
+                    # Compute the useless flag:
+                    # A move is useless if the card being moved is on top of a card of rank x+1 and the target column's top card is also of rank x+1.
+                    below = source[-2]  # The card beneath the one being moved.
+                    is_useless = (RANK_VALUES[below.rank] == RANK_VALUES[card.rank] + 1 and
+                                RANK_VALUES[target[-1].rank] == RANK_VALUES[card.rank] + 1)
                     new_state = copy.deepcopy(self)
                     new_state.tableau[i].pop()
                     new_state.tableau[j].append(card)
-                    new_state.moves.append(("to_tableau", i, j, card.rank, card.suit))
+                    new_state.moves.append(("to_tableau", i, j, card.rank, card.suit, is_useless))
                     successors.append(new_state)
+        
         return successors
+
     
     def get_cost(self, move): return 1
 

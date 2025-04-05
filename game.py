@@ -655,6 +655,10 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             
         else:
             action = game_over_screen(score, moves_count, runtime,"no_solution")
+            if action == "menu":
+                main_menu()
+            elif action == "play_again":
+                ai_options_menu(tableau=initial_tableau)
         return
     
         '''
