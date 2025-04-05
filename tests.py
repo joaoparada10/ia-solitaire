@@ -10,7 +10,7 @@ import time
 # 4, 9, 13
 # custo(moves), tempo, sucesso
 
-difficulty = 4
+difficulty = 5
 num_of_tests = 100
 max_useless = 3
 depth_limit = 100
