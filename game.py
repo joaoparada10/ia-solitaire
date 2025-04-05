@@ -239,7 +239,11 @@ def compute_ai_move(tableau, foundations, algorithm, visited):
     elif algorithm == "Greedy":
         current_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
         next_state, visited = greedy_real_time(current_state,visited)
-        move = next_state.moves[-1]
+        move = None
+        if next_state is not None:
+            move = next_state.moves[-1]
+        else:
+            return None, visited
         next_move = None
         if move[0] == "to_tableau":
             next_move = ("to_tableau", tableau[move[1]][-1], tableau[move[1]], tableau[move[2]])
