@@ -78,7 +78,7 @@ def improved_heuristic(state):
     immovable_penalty = 0
 
     # Precomputations
-    rank_order = ['king', 'queen', 'jack', '10', '9', '8', '7', '6', '5', '4']
+    rank_order = ['4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
     num_columns = len(state.tableau)
     blocking_rank = rank_order[num_columns - 4] if 4 <= num_columns <= 13 else None
 
