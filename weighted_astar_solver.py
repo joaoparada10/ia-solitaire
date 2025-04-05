@@ -70,48 +70,48 @@ class WeightedAStarSolver:
         return None
     
 def improved_heuristic(state):
-    # 1. Count remaining cards in tableau (highest priority)
-    remaining_cards = state.tableau_size()
-
-    # 2. Blocked cards (all except top in each column)
-    blocked_cards = sum(len(col) - 1 for col in state.tableau if len(col) > 1)
-
-    # 3. Foundation progress (reward moving cards to foundations)
-    foundation_progress = sum(len(pile) for pile in state.foundations.values())
-
-    # 4. Dynamic blocking penalty (based on columns)
+    remaining_cards = 0
+    blocked_cards = 0
     blocking_penalty = 0
-    rank_order = ['king', 'queen', 'jack', '10', '9', '8', '7', '6', '5', '4']  # Up to 4 columns
-    num_columns = len(state.tableau)
-    
-    if 4 <= num_columns <= 13:  # valid column count
-        blocking_rank = rank_order[num_columns - 4]  # Maps 4→'4', 5→'5', ..., 13→'king'
-        for col in state.tableau:
-            for i, card in enumerate(col[:-1]):  # Skip top card
-                if card.rank == blocking_rank:
-                    blocking_penalty += (len(col) - i) * 3  # Penalty increases with depth
-
-    # 5. Sequence bonus (rewards in-suit sequences)
     sequence_bonus = 0
-    for col in state.tableau:
-        if len(col) > 1:
-            for i in range(len(col) - 2, -1, -1):
-                if (RANK_VALUES[col[i].rank] == RANK_VALUES[col[i + 1].rank] + 1 and
-                        col[i].suit == col[i + 1].suit):
-                    sequence_bonus -= 2  # Reward sequences
-
-    # 6. Empty column bonus (improves mobility)
-    empty_column_bonus = sum(1 for col in state.tableau if not col) * (-5)
-
-    # 7. Immovable penalty (cards blocking sequences)
+    empty_column_bonus = 0
     immovable_penalty = 0
+
+    # Precomputations
+    rank_order = ['king', 'queen', 'jack', '10', '9', '8', '7', '6', '5', '4']
+    num_columns = len(state.tableau)
+    blocking_rank = rank_order[num_columns - 4] if 4 <= num_columns <= 13 else None
+
+    # Traverse the tableau once
     for col in state.tableau:
-        if len(col) > 2:
-            for i in range(len(col) - 2):
-                if RANK_VALUES[col[i].rank] != RANK_VALUES[col[i + 1].rank] + 1:
+        remaining_cards += len(col)
+        
+        if not col:
+            empty_column_bonus -= 5  # Bonus for empty columns
+            continue
+        
+        blocked_cards += len(col) - 1  # All except the top card
+        
+        # Check penalties and sequences
+        for i, card in enumerate(col):
+            # Penalty for cards blocking the game
+            if blocking_rank and card.rank == blocking_rank and i < len(col) - 1:
+                blocking_penalty += (len(col) - i) * 3
+            
+            # Bonus for sequences of the same suit
+            if i < len(col) - 1:
+                next_card = col[i + 1]
+                if (RANK_VALUES[card.rank] == RANK_VALUES[next_card.rank] + 1 and
+                    card.suit == next_card.suit):
+                    sequence_bonus -= 2  # Negative bonus (reduces heuristic)
+                
+                # Penalty for cards blocking sequences
+                if RANK_VALUES[card.rank] != RANK_VALUES[next_card.rank] + 1:
                     immovable_penalty += 2
 
-    # Combined heuristic (weighted sum)
+    foundation_progress = sum(len(pile) for pile in state.foundations.values())
+
+    # Final heuristic calculation
     heuristic_value = (
         remaining_cards * 3 +
         blocked_cards * 2 +
@@ -119,6 +119,6 @@ def improved_heuristic(state):
         sequence_bonus * 1.5 +
         empty_column_bonus +
         immovable_penalty +
-        -foundation_progress * 5  # Biggest reward for foundations
+        -foundation_progress * 5  # Greater reward
     )
     return heuristic_value
