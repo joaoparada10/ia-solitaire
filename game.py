@@ -547,10 +547,10 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "A*":
                 solver = AStarSolver(initial_state)
-                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
             elif algorithm == "Weighted A*":
                 solver = WeightedAStarSolver(initial_state, weight=weight)
-                solution = solver.solve(max_nodes=1000000, cancel_event=dfs_cancel_event)
+                solution = solver.solve(max_nodes=100000, cancel_event=dfs_cancel_event)
             
             solution_container['solution'] = solution
             if algorithm in ["A*", "Weighted A*"]:
