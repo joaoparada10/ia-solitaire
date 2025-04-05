@@ -64,25 +64,60 @@ def greedy_real_time(state, visited):
 
 # Estimates shortest distance to goal
 def heuristic(state):
-    # 1. Count of remaining cards in tableau (highest priority factor)
-    remaining_cards = sum(len(col) for col in state.tableau)
+    remaining_cards = 0
+    blocked_cards = 0
+    foundation_progress = 0
+    king_penalty = 0
+    sequence_bonus = 0
+    immovable_penalty = 0
+    ace_on_foundation = 0
+    imbalance_penalty = 0
+    buried_low_cards_penalty = 0
+    empty_column_bonus = 0
 
-    # 2. Blocked cards: All cards except the topmost in each column
-    blocked_cards = sum(len(col) - 1 for col in state.tableau if len(col) > 1)
+    foundation_lengths = [len(pile) for pile in state.foundations.values()]
+    rank_order = ['4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
+    num_columns = len(state.tableau)
+    blocking_rank = rank_order[num_columns - 4] if 4 <= num_columns <= 13 else None
+
 
     # 3. Foundation progress: Encourages moving cards to foundations
-    foundation_progress = sum(len(pile) for pile in state.foundations.values())
+
+    foundation_progress = sum(foundation_lengths)
+
+    # 7. If there are Aces on top, immediatly take them to the fundations
+
+    for foundation in state.foundations.values():
+        for card in foundation:
+            if card.rank == 'ace':
+                ace_on_foundation -= 20
     
-    # 4. Non movemable King (high penalty for being deeper in columns)
-    king_penalty = 0
+    # 8. Balance between foundations (Minimize the distance between the most advanced foundation and the most delayed foundation)
+
+    if foundation_lengths:
+        imbalance_penalty = (max(foundation_lengths) - min(foundation_lengths)) * 2
+    else:
+        imbalance_penalty = 0
+
     for col in state.tableau:
-        for i, card in enumerate(col[:-1]):  # Ignore topmost card
-            if card.rank == 'king':
-                king_penalty += (len(col) - i) * 3  # Increased penalty
-    
-    # 5. Sequence potential: Rewarding suit-based sequences
-    sequence_bonus = 0
-    for col in state.tableau:
+
+        # 10. Gives a bonus for every empty column
+
+        if not col:
+            #empty_column_bonus -= 5  # Bonus for empty columns
+            continue
+
+        # 1. Count of remaining cards in tableau (highest priority factor)
+
+        remaining_cards += len(col)
+        
+        # 2. Blocked cards: All cards except the topmost in each column
+
+        if len(col) > 1:
+            blocked_cards += len(col)-1
+
+        # 5. Sequence potential: Rewarding suit-based sequences
+
         if len(col) > 1:
             for i in range(len(col) - 2, -1, -1):
                 if (RANK_VALUES[col[i].rank] == RANK_VALUES[col[i + 1].rank] + 1 and
@@ -91,40 +126,27 @@ def heuristic(state):
                 else:
                     break
 
-    # 6. Immovable card penalty: Cards deep in a stack without an exit strategy
-    immovable_penalty = 0
-    for col in state.tableau:
+        # 6. Immovable card penalty: Cards deep in a stack without an exit strategy
+        '''
         if len(col) > 2:  # If a column has more than 2 cards
             for i in range(len(col) - 2):
                 if col[i].rank == 'queen' and col[i + 1].rank == 'king':  # Bad positioning
                     immovable_penalty += 5  # Heavy penalty for stuck cards
-    
-    # 7. If there are Aces on top, immediatly take them to the fundations
+        '''
 
-    ace_on_foundation = 0
-    for foundation in state.foundations.values():
-        for card in foundation:
-            if card.rank == 'ace':
-                ace_on_foundation -= 20
-    
-    # 8. Balance between foundations (Minimize the distance between the most advanced foundation and the most delayed foundation)
+        # 4. Non movemable King (high penalty for being deeper in columns)
 
-    foundation_lengths = [len(pile) for pile in state.foundations.values()]
-    if foundation_lengths:
-        imbalance_penalty = (max(foundation_lengths) - min(foundation_lengths)) * 2
-    else:
-        imbalance_penalty = 0
+        if col[0].rank == blocking_rank:
+            king_penalty += (len(col) -1) * 3
+        
+        # 9. prioritize low cards to be lifted first
 
-    # 9. prioritize low cards to be lifted first
-
-    buried_low_cards_penalty = 0
-    for col in state.tableau:
         for i, card in enumerate(col[:-1]):  # not top card
             if card.rank in ['ace', '2']:
                 buried_low_cards_penalty += (len(col) - i) * 4
 
-
     # Combine factors with optimized weights
+
     heuristic_value = (
         remaining_cards * 3 +
         blocked_cards * 1.5 +
@@ -135,6 +157,7 @@ def heuristic(state):
         -foundation_progress * 5 # Strong reward for foundation progress
         + ace_on_foundation
         + buried_low_cards_penalty
+        + empty_column_bonus
     )
 
     return heuristic_value
