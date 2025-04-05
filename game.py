@@ -125,14 +125,14 @@ def draw_table(screen, tableau, foundations, remaining_time, score, undo_count,
     return_to_menu_text = font.render("Return to Menu", True, TEXT_COLOR)
     screen.blit(return_to_menu_text, (25, HEIGHT - 45))
     
-    undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
-    pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
-    undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
-    screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
     
-    # Only draw hint button in human mode
+    # Only draw hint and undo button in human mode
     hint_button_rect = None
     if is_human:
+        undo_button_rect = pygame.Rect(WIDTH - 150, HEIGHT - 50, 100, 30)
+        pygame.draw.rect(screen, BUTTON_COLOR, undo_button_rect)
+        undo_text = font.render(f"Undo ({undo_count})", True, TEXT_COLOR)
+        screen.blit(undo_text, (WIDTH - 140, HEIGHT - 45))
         hint_button_rect = pygame.Rect(WIDTH - 300, HEIGHT - 50, 100, 30)
         pygame.draw.rect(screen, BUTTON_COLOR, hint_button_rect)
         hint_text = font.render("Hint", True, TEXT_COLOR)
