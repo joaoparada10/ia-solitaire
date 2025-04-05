@@ -37,6 +37,30 @@ def greedy(state, visited, cancel_event=None, counter=0):
     
     return greedy(next_state, visited, cancel_event, counter)
 
+def greedy_real_time(state, visited):
+    if state is None:
+        return (None, visited)
+
+    state_repr = represent_state(state)
+
+    if state_repr in visited:
+        return (None, visited)
+    visited.add(state_repr)
+
+    current_min = 100000
+    next_state = None
+
+    for successor in state.get_successors():
+        state_repr_succ = represent_state(successor)
+        if state_repr_succ in visited:
+            continue
+        h_value = heuristic(successor)
+
+        if (h_value < current_min):
+            next_state = successor
+            current_min = h_value
+    
+    return (next_state, visited)
 
 # Estimates shortest distance to goal
 def heuristic(state):
