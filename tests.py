@@ -115,7 +115,7 @@ for i in range(1,num_of_tests+1, 1):
 
     start_time = pygame.time.get_ticks()
 
-    solution = run_greedy_solver(tableau, foundations, depht_limit, None)
+    solution = run_greedy_solver(tableau, foundations, None)
 
     runtime = pygame.time.get_ticks() - start_time
 

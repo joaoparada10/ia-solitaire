@@ -208,7 +208,11 @@ def run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=None
 # --- Iterative Deepening Integration ---
 def run_itd_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, useless = iterative_deepening(initial_state, depth_limit, max_useless, cancel_event)
+    result = iterative_deepening(initial_state, depth_limit, max_useless, cancel_event)
+    if result is None:
+        solution, useless = None, None
+    else:
+        solution, useless = result
     return solution
 
 # --- Greedy Integration ---
