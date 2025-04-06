@@ -8,21 +8,20 @@ def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_use
         print(f"Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
 
     if cancel_event is not None and cancel_event.is_set():
-        return None, useless_count
+        return None, 0
     if state.is_goal():
         print(f"Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
-        return state.moves, useless_count
+        return state.moves, counter[0]
     if depth_limit <= 0:
-        return None, useless_count
-    if counter[0] > 100000:
-        return None, useless_count
+        return None, 0
 
     state_repr = repr(state)
     if state_repr in visited:
-        return None, useless_count
+        return None, 0
     visited.add(state_repr)
 
     current_h = heuristic(state)
+    total_states = 0
     for successor in state.get_successors():
         new_h = heuristic(successor)
         # Determine if the successor's last move is a tableau move and get its useless flag.
@@ -48,12 +47,16 @@ def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_use
             # Prune this branch.
             continue
 
-        result, returned_useless = dfs(successor, visited, depth_limit - 1,
-                                         cancel_event, new_useless, max_useless, counter)
+        result, returned_counter = dfs(successor, visited, depth_limit - 1,
+                                         cancel_event, new_useless, max_useless, [0])
+        total_states += returned_counter
         if result is not None:
-            return result, returned_useless
+            counter[0] += total_states
+            return result, counter[0]
+        
+    counter[0] += total_states
 
-    return None, useless_count
+    return None, counter[0]
 
 def heuristic(state):
     # Sum of cards remaining in each tableau column.
@@ -73,18 +76,16 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
         print(f"Improved DFS Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
 
     if cancel_event is not None and cancel_event.is_set():
-        return None, useless_count
+        return None, 0
     if state.is_goal():
         print(f"Improved DFS Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
-        return state.moves, useless_count
+        return state.moves, counter[0]
     if depth_limit <= 0:
-        return None, useless_count
-    if counter[0] > 100000:
-        return None, useless_count
+        return None, 0
 
     state_repr = repr(state)
     if state_repr in visited:
-        return None, useless_count
+        return None, 0
     visited.add(state_repr)
 
     current_h = heuristic(state)
@@ -111,6 +112,8 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
     
     ordered_successors = sorted(successors, key=sort_key)
 
+    total_states = 0
+
     for successor in ordered_successors:
         if successor.moves and successor.moves[-1][0] == "to_tableau":
             move_is_useless = successor.moves[-1][5]  # This flag is set in get_successors
@@ -120,8 +123,13 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
             new_useless = 0
         if new_useless >= max_useless:
             continue
-        result, returned_useless = dfs_improved(successor, visited, depth_limit - 1,
+        result, returned_counter = dfs_improved(successor, visited, depth_limit - 1,
                                                   cancel_event, new_useless, max_useless, counter)
+        total_states += returned_counter
         if result is not None:
-            return result, returned_useless
-    return None, useless_count
+            counter[0] += total_states
+            return result, counter[0]
+    
+    counter[0] += total_states
+
+    return None, counter[0]

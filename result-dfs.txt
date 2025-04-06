@@ -1,0 +1,24 @@
+=== SOLITAIRE SOLUTION ===
+Total Moves: 18
+Time Taken: 0.3400 ms
+Memory Used: 19 States explored
+
+Moves to the Solution:
+1. ('to_foundation', 2, 'ace', 'clubs')
+2. ('to_foundation', 2, 'ace', 'hearts')
+3. ('to_foundation', 3, '2', 'hearts')
+4. ('to_foundation', 2, '3', 'hearts')
+5. ('to_tableau', 0, 2, '3', 'diamonds', False)
+6. ('to_foundation', 0, 'ace', 'spades')
+7. ('to_tableau', 1, 0, '2', 'diamonds', False)
+8. ('to_foundation', 1, 'ace', 'diamonds')
+9. ('to_foundation', 0, '2', 'diamonds')
+10. ('to_foundation', 1, '2', 'clubs')
+11. ('to_foundation', 2, '3', 'diamonds')
+12. ('to_foundation', 2, '4', 'diamonds')
+13. ('to_foundation', 3, '3', 'clubs')
+14. ('to_foundation', 1, '4', 'clubs')
+15. ('to_foundation', 3, '2', 'spades')
+16. ('to_foundation', 0, '3', 'spades')
+17. ('to_foundation', 0, '4', 'spades')
+18. ('to_foundation', 3, '4', 'hearts')

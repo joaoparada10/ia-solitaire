@@ -18,14 +18,16 @@ def iterative_deepening(initial_state, max_depth=100, max_useless=20, cancel_eve
         The solution moves (if found), otherwise None.
     """
     tableau_size = initial_state.tableau_size()
+    total_states = 0
     for depth in range(tableau_size, max_depth + 1):
         print(f"Trying DFS with depth limit: {depth}")
         # Create a new visited set for each DFS run.
         visited = set()
         # Reset the DFS node counter for each iteration.
-        solution, useless_count = dfs(initial_state, visited, depth, cancel_event, useless_count=0, max_useless=depth-tableau_size, counter=[0])
+        solution, states_count = dfs(initial_state, visited, depth, cancel_event, useless_count=0, max_useless=depth-tableau_size, counter=[0])
+        total_states += states_count
         if solution is not None:
-            print(f"Solution found at depth {depth}. Useless moves: {useless_count}.")
-            return solution, useless_count
+            print(f"Solution found at depth {depth}. States visited: {total_states}.")
+            return solution, total_states
     print("No solution found up to the maximum depth limit.")
-    return None
+    return None, 0
