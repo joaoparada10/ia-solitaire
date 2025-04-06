@@ -24,11 +24,11 @@ class AStarSolver:
         while open_set:
             if cancel_event and cancel_event.is_set():
                 print("Search cancelled")
-                return None, self.nodes_expanded
+                return None
                 
             if self.nodes_expanded >= max_nodes:
                 print(f"Reached max nodes ({max_nodes})")
-                return None, self.nodes_expanded
+                return None
                 
             current_f, _, current_state = heapq.heappop(open_set)
             open_set_hash.remove(repr(current_state))
@@ -48,7 +48,7 @@ class AStarSolver:
                     path.append(current_state.moves[-1])
                     current_state = came_from[repr(current_state)]
                 path.reverse()
-                return path, self.nodes_expanded
+                return path
                 
             for neighbor in current_state.get_successors():
                 neighbor_repr = repr(neighbor)
@@ -64,7 +64,7 @@ class AStarSolver:
                         open_set_hash.add(neighbor_repr)
                         
         print("No solution found - open set exhausted")
-        return None, self.nodes_expanded
+        return None
     
 def improved_heuristic(state):
     remaining_cards = 0

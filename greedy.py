@@ -4,29 +4,29 @@ from constants import RANK_VALUES
 def greedy(state, visited, cancel_event=None, counter=0):
     # Print progress every 1000 nodes
     if state is None:
-        return None, counter
+        return None
     counter += 1
     if counter % 1000 == 0:
         print(f"Expanded nodes: {counter}")
     
     if cancel_event is not None and cancel_event.is_set():
-        return None, counter
+        return None
 
     if state.is_goal():
         print(f"Expanded nodes: {counter}")
-        return state.moves, counter
+        return state.moves
 
     state_repr = represent_state(state)
 
     if state_repr in visited:
-        return None, counter
+        return None
     visited.add(state_repr)
 
     current_min = 100000
     next_state = None
 
     if len(state.moves) == 970:
-        return None, counter
+        return None
 
     for successor in state.get_successors():
         state_repr_succ = represent_state(successor)
