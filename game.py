@@ -43,6 +43,9 @@ class Card:
         new_card.image = self.image
         memo[id(self)] = new_card
         return new_card
+    
+    def __str__(self):
+        return f"{self.suit}{self.rank}"
 
 
     def draw(self, screen):
@@ -191,7 +194,68 @@ def game_over_screen(score, moves, solve_time, reason):
                     if rect.collidepoint(event.pos):
                         return "menu" if text == "Return to Menu" else "play_again"
 
+# --- Read From Files ---
 
+def parse_card(card_str, x=0, y=0):
+    # Example input: "spades4"
+    for suit in ["'hearts", "'diamonds", "'clubs", "'spades"]:
+        print("Suit:    ")
+        print(suit)
+        print(card_str)
+        print("{card_str}".startswith("{suit}"))
+        if str(card_str).startswith(str(suit)):
+            print(suit)
+            rank = card_str[len(suit):len(card_str)-1]
+            return Card(rank, suit[1:], x, y)
+    raise ValueError(f"Invalid card string: {card_str}")
+
+def load_state_from_file(filename):
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+    tableau = [[] for _ in range(13)]  # max 13 columns
+    foundations = {'hearts': [], 'diamonds': [], 'clubs': [], 'spades': []}
+
+    reading_foundations = False
+    reading_tableau = False
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("Foundations:"):
+            reading_foundations = True
+            reading_tableau = False
+            continue
+        elif line.startswith("Tableau:"):
+            reading_tableau = True
+            reading_foundations = False
+            continue
+
+        if reading_foundations:
+            if ":" in line:
+                suit, card_list_str = line.split(":")
+                suit = suit.strip()
+                card_list_str = card_list_str.strip().strip("[]")
+                cards = [parse_card(c.strip()) for c in card_list_str.split(",") if c.strip()]
+                foundations[suit] = cards
+
+        elif reading_tableau:
+            if line.startswith("Column"):
+                col_num_str, card_list_str = line.split(":")
+                col_index = int(col_num_str.strip().split(" ")[1])
+                card_list_str = card_list_str.strip().strip("[]")
+                cards = [parse_card(c.strip()) for c in card_list_str.split(",") if c.strip()]
+                tableau[col_index] = cards
+
+    tableau = [col for col in tableau if col]
+
+    for col_index, col in enumerate(tableau):
+        for card_index, card in enumerate(col):
+            card.rect.x = SPACING_X * col_index + 20
+            card.rect.y = TABLEAU_Y + card_index * 30
+
+    return tableau, foundations
 
 # --- DFS Integration ---
 def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
@@ -281,13 +345,15 @@ def compute_ai_move(tableau, foundations, algorithm, visited):
         return next_move, visited
     return None, visited
 
-def game_loop(difficulty=13, game_duration=12, tableau=None):
-    if tableau == None:
-        deck = create_deck(difficulty)
-
-        tableau = deal_cards(deck, difficulty)
-    initial_tableau = copy.deepcopy(tableau)
+def game_loop(difficulty=13, game_duration=12, tableau=None, read_from_file=False):
     foundations = {suit: [] for suit in SUITS}
+    if tableau == None:
+        if not read_from_file:
+            deck = create_deck(difficulty)
+            tableau = deal_cards(deck, difficulty)
+        else:
+            tableau, foundations = load_state_from_file("initial.txt")
+    initial_tableau = copy.deepcopy(tableau)
     running = True
     selected_card = None
     original_position = None
@@ -529,10 +595,14 @@ def game_loop(difficulty=13, game_duration=12, tableau=None):
         pygame.display.flip()
         clock.tick(60)
 
-def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, depth_limit, weight=1.5,tableau=None):
+def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless, depth_limit, weight=1.5,tableau=None, read_from_file=False):
+    foundations = {suit: [] for suit in SUITS}
     if tableau == None:
-        deck = create_deck(difficulty)
-        tableau = deal_cards(deck, difficulty)
+        if not read_from_file:
+            deck = create_deck(difficulty)
+            tableau = deal_cards(deck, difficulty)
+        else:
+            tableau, foundations = load_state_from_file("initial.txt")
     initial_tableau = copy.deepcopy(tableau)
     foundations = {suit: [] for suit in SUITS}
     clock = pygame.time.Clock()
@@ -1027,7 +1097,8 @@ def human_options_menu(tableau=None):
     duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 310, 50, 40)
     duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 310, 50, 40)
     start_rect = pygame.Rect(WIDTH//2 - 100, 370, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 440, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 510, 200, 50)
+    read_from_file_rect = pygame.Rect(WIDTH//2 - 100, 440, 200, 50)
     while options_running:
         screen.fill(BACKGROUND_COLOR)
         title = font.render("Human Options", True, TEXT_COLOR)
@@ -1036,9 +1107,11 @@ def human_options_menu(tableau=None):
             diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
             screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+
             diff_decr_text = font.render("-", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
             screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+
             diff_incr_text = font.render("+", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
             screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
@@ -1046,21 +1119,31 @@ def human_options_menu(tableau=None):
             diff_text = font.render(f"Deck already chosen!", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
             screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+        
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 310, 200, 40))
         screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 315))
+
         duration_decr_text = font.render("-", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_decr)
         screen.blit(duration_decr_text, (duration_rect_decr.x + 15, duration_rect_decr.y + 5))
+
         duration_incr_text = font.render("+", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
         screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
+
         start_text = font.render("Start Game", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
         screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
+
         return_text = font.render("Return", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
         screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
+
+        read_file_text = font.render("Read from File", True, TEXT_COLOR)
+        pygame.draw.rect(screen, BUTTON_COLOR, read_from_file_rect)
+        screen.blit(read_file_text, (read_from_file_rect.x + 10, read_from_file_rect.y + 5))
+
         pygame.display.flip()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -1088,12 +1171,16 @@ def human_options_menu(tableau=None):
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
+                elif read_from_file_rect.collidepoint(event.pos):
+                    options_running = False
+                    game_loop(difficulty, duration, None, read_from_file=True)
 
 def ai_options_menu(tableau=None):
+    '''
     import pygame
     from constants import MAX_USELESS_MOVES, WIDTH, HEIGHT, BACKGROUND_COLOR, BUTTON_COLOR, TEXT_COLOR
     from game import ai_game_loop, main_menu
-
+    '''
     options_running = True
     algorithm_options = ["Simple", "Random", "DFS", "DFS Improved", "Iterative Deepening", "A*", "Weighted A*", "Greedy"]
     algorithm_index = 0
@@ -1165,7 +1252,8 @@ def ai_options_menu(tableau=None):
     
     # Start and Return buttons
     start_rect  = pygame.Rect(WIDTH//2 - 100, 620, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 690, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 760, 200, 50)
+    read_from_file_rect = pygame.Rect(WIDTH//2 - 100, 690, 200, 50)
     
     while options_running:
         screen.fill(BACKGROUND_COLOR)
@@ -1180,6 +1268,10 @@ def ai_options_menu(tableau=None):
         # Difficulty selection (only if no deck has been chosen yet)
         if tableau is None:
             draw_numeric_control("Cards per Suit", difficulty, diff_center, diff_minus, diff_plus)
+            
+            read_file_text = font.render("Read from File", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, read_from_file_rect)
+            screen.blit(read_file_text, (read_from_file_rect.x + 10, read_from_file_rect.y + 5))
         else:
             diff_text = font.render("Deck already chosen!", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_center)
@@ -1264,3 +1356,16 @@ def ai_options_menu(tableau=None):
                 elif return_rect.collidepoint(pos):
                     options_running = False
                     main_menu()
+                elif read_from_file_rect.collidepoint(event.pos):
+                    options_running = False
+                    ai_game_loop(
+                        algorithm=algorithm_options[algorithm_index],
+                        difficulty=(len(tableau) if tableau is not None else difficulty),
+                        game_duration=duration,
+                        display_mode=display_mode,
+                        max_useless=max_useless,
+                        depth_limit=depth_limit,  # new parameter passed here
+                        weight=weight,
+                        tableau=tableau,
+                        read_from_file=True
+                    )

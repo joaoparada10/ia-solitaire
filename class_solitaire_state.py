@@ -76,9 +76,9 @@ class SolitaireState:
     def get_cost(self, move): return 1
 
     def __str__(self):
-        foundation_str = "\n".join(f"{suit}: {[c.rank for c in pile]}" 
+        foundation_str = "\n".join(f"{suit}: {[str(c) for c in pile]}" 
                                  for suit, pile in self.foundations.items())
-        tableau_str = "\n".join(f"Column {i}: {[c.rank for c in col]}" 
+        tableau_str = "\n".join(f"Column {i}: {[str(c) for c in col]}" 
                                for i, col in enumerate(self.tableau))
         return f"Foundations:\n{foundation_str}\n\nTableau:\n{tableau_str}"
     
