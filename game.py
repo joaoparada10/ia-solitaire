@@ -284,13 +284,13 @@ def write_solution_to_file(filename, moves, time_taken, memory_used):
 # --- DFS Integration ---
 def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, nodes_expanded = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
-    return solution, nodes_expanded
+    solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless,[0])
+    return solution
 
 def run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, nodes_expanded = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
-    return solution, nodes_expanded
+    solution, useless = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless,[0])
+    return solution
 
 
 # --- Iterative Deepening Integration ---
@@ -298,10 +298,10 @@ def run_itd_solver(tableau, foundations, depth_limit, cancel_event=None, max_use
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
     result = iterative_deepening(initial_state, depth_limit, max_useless, cancel_event)
     if result is None:
-        solution, nodes_expanded = None, None
+        solution, useless = None, None
     else:
-        solution, nodes_expanded = result
-    return solution, nodes_expanded
+        solution, useless = result
+    return solution
 
 # --- Greedy Integration ---
 def run_greedy_solver(tableau, foundations, cancel_event=None):
