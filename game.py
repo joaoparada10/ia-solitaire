@@ -253,7 +253,7 @@ def load_state_from_file(filename):
 
     return tableau, foundations
 
-def write_solution_to_file(filename, moves, time_taken, memory_used):
+def write_solution_to_file(filename, moves, time_taken, memory_used=0):
     """
     Writes the solution details to a text file.
 
@@ -268,7 +268,7 @@ def write_solution_to_file(filename, moves, time_taken, memory_used):
             f.write("=== SOLITAIRE SOLUTION ===\n")
             f.write(f"Total Moves: {len(moves)}\n")
             f.write(f"Time Taken: {time_taken:.4f} ms\n")
-            f.write(f"Memory Used: {memory_used} States explored\n\n")
+            #f.write(f"Memory Used: {memory_used} States explored\n\n")
             f.write("Moves to the Solution:\n")
 
             for i, move in enumerate(moves, start=1):
@@ -659,12 +659,12 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
             nodes_expanded = 0
             
             if algorithm == "DFS":
-                solution, nodes_expanded = run_dfs_solver(tableau, foundations, depth_limit, 
+                solution = run_dfs_solver(tableau, foundations, depth_limit, 
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "DFS Improved":
-                solution, nodes_expanded = run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=dfs_cancel_event, max_useless=max_useless)
+                solution = run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "Iterative Deepening":
-                solution, nodes_expanded = run_itd_solver(tableau, foundations, depth_limit, 
+                solution = run_itd_solver(tableau, foundations, depth_limit, 
                                          cancel_event=dfs_cancel_event, max_useless=max_useless)
             elif algorithm == "A*":
                 solver = AStarSolver(initial_state)
@@ -734,7 +734,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
 
             # Set duration based on display_mode:
             duration_val = 1000 if display_mode else 10  # 1 sec in slow mode, 10ms in fast mode
-            print(f"Expanded {solution_container['nodes_expanded']} nodes")
+            #print(f"Expanded {solution_container['nodes_expanded']} nodes")
             
             for move in solution:
                 if move[0] == "to_foundation":
@@ -781,7 +781,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
                         moves_count += 1
 
                 update_positions(tableau)
-            write_solution_to_file(filename, solution, runtime/100, solution_container["nodes_expanded"])
+            write_solution_to_file(filename, solution, runtime/100)
             action = game_over_screen(score, moves_count, runtime,"user_won")
             if action == "menu":
                 main_menu()
@@ -817,7 +817,7 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
 
             if check_win(tableau):
                 running = False
-                write_solution_to_file("result-greedy.txt", greedy_moves, elapsed_time / 100, moves_count)
+                write_solution_to_file("result-greedy.txt", greedy_moves, elapsed_time / 100)
                 action = game_over_screen(score, moves_count, elapsed_time, reason="user_won")
                 if action == "menu":
                     main_menu()
