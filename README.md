@@ -65,6 +65,7 @@ You can tweak the gameplay and AI behavior:
 
 ### File Structure
 - `main.py`: Main game launcher;
+- `game.py`: Game logic;
 - `constants.py`: Game settings and constants;
 - `class_solitaire_state.py`: Game state structure;
 - `dfs_solver.py`: DFS-based solvers;
