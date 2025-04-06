@@ -14,6 +14,8 @@ def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_use
         return state.moves, useless_count
     if depth_limit <= 0:
         return None, useless_count
+    if counter[0] > 100000:
+        return None, useless_count
 
     state_repr = repr(state)
     if state_repr in visited:
@@ -76,6 +78,8 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
         print(f"Improved DFS Expanded nodes: {counter[0]}, depth_limit: {depth_limit}, current useless: {useless_count}")
         return state.moves, useless_count
     if depth_limit <= 0:
+        return None, useless_count
+    if counter[0] > 100000:
         return None, useless_count
 
     state_repr = repr(state)

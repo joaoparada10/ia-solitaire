@@ -10,8 +10,8 @@ import time
 # 4, 9, 13
 # custo(moves), tempo, sucesso
 
-difficulty = 8
-num_of_tests = 30
+difficulty = 13
+num_of_tests = 10
 max_useless = 3
 depth_limit = 100
 a_weight = 1.5
@@ -240,7 +240,7 @@ for i in range(1,num_of_tests+1, 1):
 
     #run Greedy
 
-    """ start_time = time.time()
+    start_time = time.time()
 
     solution = run_greedy_solver(tableau, foundations, None)
 
@@ -249,56 +249,66 @@ for i in range(1,num_of_tests+1, 1):
     if solution is not None:
         greedy_successes += 1
         greedy_moves += len(solution)
-        greedy_time += runtime """
+        greedy_time += runtime
 
 # Statistics
 print("DIFFICULTY "+ str(difficulty) + " RESULTS - AVERAGES FOR "+str(num_of_tests)+" RANDOM INITIAL STATES \n")
 print("DFS Success Rate = " + str((dfs_successes / num_of_tests)*100)+"%")
-print("DFS Avg Moves = " + f"{dfs_moves / dfs_successes:.4f}")
-print("DFS Avg Time = " + f"{dfs_time / dfs_successes:.4f}s" + "\n")
+if dfs_successes > 0:
+    print("DFS Avg Moves = " + f"{dfs_moves / dfs_successes:.4f}")
+    print("DFS Avg Time = " + f"{dfs_time / dfs_successes:.4f}s" + "\n")
 
 
 print("DFS Improved Success Rate = " + str((dfs_improved_success/ num_of_tests)*100)+"%")
-print("DFS Improved Avg Moves = " + f"{dfs_improved_moves / dfs_improved_success:.4f}")
-print("DFS Improved Avg Time = " + f"{dfs_improved_time / dfs_improved_success:.4f}s" + "\n")
+if dfs_improved_success > 0:
+    print("DFS Improved Avg Moves = " + f"{dfs_improved_moves / dfs_improved_success:.4f}")
+    print("DFS Improved Avg Time = " + f"{dfs_improved_time / dfs_improved_success:.4f}s" + "\n")
 
 print("DFS1 Success Rate = " + str((dfs1_successes/ num_of_tests)*100)+"%")
-print("DFS1 Avg Moves = " + f"{dfs1_moves / dfs1_successes:.4f}")
-print("DFS1 Avg Time = " + f"{dfs1_time / dfs1_successes:.4f}s" + "\n")
+if dfs1_successes > 0:
+    print("DFS1 Avg Moves = " + f"{dfs1_moves / dfs1_successes:.4f}")
+    print("DFS1 Avg Time = " + f"{dfs1_time / dfs1_successes:.4f}s" + "\n")
 
 print("DFS Improved1 Success Rate = " + str((dfs1_improved_success/ num_of_tests)*100)+"%")
-print("DFS Improved1 Avg Moves = " + f"{dfs1_improved_moves / dfs1_improved_success:.4f}")
-print("DFS Improved1 Avg Time = " + f"{dfs1_improved_time / dfs1_improved_success:.4f}s" + "\n")
+if dfs1_improved_success > 0:
+    print("DFS Improved1 Avg Moves = " + f"{dfs1_improved_moves / dfs1_improved_success:.4f}")
+    print("DFS Improved1 Avg Time = " + f"{dfs1_improved_time / dfs1_improved_success:.4f}s" + "\n")
 
 print("DFS2 Success Rate = " + str((dfs2_successes/ num_of_tests)*100)+"%")
-print("DFS2 Avg Moves = " + f"{dfs2_moves / dfs2_successes:.4f}")
-print("DFS2 Avg Time = " + f"{dfs2_time / dfs2_successes:.4f}s" + "\n")
+if dfs2_successes > 0:
+    print("DFS2 Avg Moves = " + f"{dfs2_moves / dfs2_successes:.4f}")
+    print("DFS2 Avg Time = " + f"{dfs2_time / dfs2_successes:.4f}s" + "\n")
 
 print("DFS Improved2 Success Rate = " + str((dfs2_improved_success/ num_of_tests)*100)+"%")
-print("DFS Improved2 Avg Moves = " + f"{dfs2_improved_moves / dfs2_improved_success:.4f}")
-print("DFS Improved2 Avg Time = " + f"{dfs2_improved_time / dfs2_improved_success:.4f}s" + "\n")
+if dfs2_improved_success > 0:
+    print("DFS Improved2 Avg Moves = " + f"{dfs2_improved_moves / dfs2_improved_success:.4f}")
+    print("DFS Improved2 Avg Time = " + f"{dfs2_improved_time / dfs2_improved_success:.4f}s" + "\n")
 
 """ print("DFS Itr Success Rate = " + str((dfs_itr_successes/ num_of_tests)*100)+"%")
 print("DFS Itr Avg Moves = " + f"{dfs_itr_moves / dfs_itr_successes:.4f}")
 print("DFS Itr Avg Time = " + f"{dfs_itr_time / dfs_itr_successes:.4f}s" + "\n") """
 
 print("A Star Success Rate = " + str((a_star_successes/ num_of_tests)*100)+"%")
-print("A Star Avg Moves = " + f"{a_star_moves / a_star_successes:.4f}")
-print("A Star Avg Time = " + f"{a_star_time / a_star_successes:.4f}s" + "\n")
+if a_star_successes > 0:
+    print("A Star Avg Moves = " + f"{a_star_moves / a_star_successes:.4f}")
+    print("A Star Avg Time = " + f"{a_star_time / a_star_successes:.4f}s" + "\n")
 
 print("A Star Weighted Success Rate = " + str((a_star_w_successes/ num_of_tests)*100)+"%")
-print("A Star Weighted Avg Moves = " + f"{a_star_w_moves / a_star_w_successes:.4f}")
-print("A Star Weighted Avg Time = " + f"{a_star_w_time / a_star_w_successes:.4f}s" + "\n")
+if a_star_w_successes > 0:
+    print("A Star Weighted Avg Moves = " + f"{a_star_w_moves / a_star_w_successes:.4f}")
+    print("A Star Weighted Avg Time = " + f"{a_star_w_time / a_star_w_successes:.4f}s" + "\n")
 
 print("A Star Weighted1 Success Rate = " + str((a_star_w1_successes/ num_of_tests)*100)+"%")
-print("A Star Weighted1 Avg Moves = " + f"{a_star_w1_moves / a_star_w1_successes:.4f}")
-print("A Star Weighted1 Avg Time = " + f"{a_star_w1_time / a_star_w1_successes:.4f}s" + "\n")
+if a_star_w1_successes > 0:
+    print("A Star Weighted1 Avg Moves = " + f"{a_star_w1_moves / a_star_w1_successes:.4f}")
+    print("A Star Weighted1 Avg Time = " + f"{a_star_w1_time / a_star_w1_successes:.4f}s" + "\n")
 
 print("A Star Weighted2 Success Rate = " + str((a_star_w2_successes/ num_of_tests)*100)+"%")
-print("A Star Weighted2 Avg Moves = " + f"{a_star_w2_moves / a_star_w2_successes:.4f}")
-print("A Star Weighted2 Avg Time = " + f"{a_star_w2_time / a_star_w2_successes:.4f}s" + "\n")
+if a_star_w2_successes > 0:
+    print("A Star Weighted2 Avg Moves = " + f"{a_star_w2_moves / a_star_w2_successes:.4f}")
+    print("A Star Weighted2 Avg Time = " + f"{a_star_w2_time / a_star_w2_successes:.4f}s" + "\n")
 
-""" print("Greedy Success Rate = " + str((greedy_successes/ num_of_tests)*100)+"%")
-print("Greedy Avg Moves = " + f"{greedy_moves / greedy_successes:.4f}")
-print("Greedy Avg Time = " + f"{greedy_time / greedy_successes:.4f}s" + "\n")
- """
+print("Greedy Success Rate = " + str((greedy_successes/ num_of_tests)*100)+"%")
+if greedy_successes > 0:
+    print("Greedy Avg Moves = " + f"{greedy_moves / greedy_successes:.4f}")
+    print("Greedy Avg Time = " + f"{greedy_time / greedy_successes:.4f}s" + "\n")

@@ -196,12 +196,12 @@ def game_over_screen(score, moves, solve_time, reason):
 # --- DFS Integration ---
 def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    solution, useless = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless,[0])
     return solution
 
 def run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, useless = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    solution, useless = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless,[0])
     return solution
 
 
