@@ -79,6 +79,7 @@ You can tweak the gameplay and AI behavior:
 - `png/`: Folder with all card images;
 - `screenshots/`: Folder with the results from the performance measurements;
 - `plots/`: Folder with plots from performance measurements results;
+- `presentation/`: Folder with the presentation pdf;
 - `initial.txt`: Text file containing an initial game state.
 
 ### Troubleshooting
