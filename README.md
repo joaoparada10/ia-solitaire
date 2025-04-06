@@ -16,7 +16,8 @@ For our first assignment, we implemented a Python version of Baker´s Dozen Soli
 
 
 ### How to Run
-- To start the game, run: `python3 main.py`.
+- To start the game, run: `python3 main.py`;
+- To run the performance tests: `python3 tests.py`.
 
 ### Game Modes
 
@@ -76,6 +77,8 @@ You can tweak the gameplay and AI behavior:
 - `tests.py`: File containing performance measurements for AI algorithms;
 - `helpers.py`: Utility functions;
 - `png/`: Folder with all card images;
+- `screenshots/`: Folder with the results from the performance measurements;
+- `plots/`: Folder with plots from performance measurements results;
 - `initial.txt`: Text file containing an initial game state.
 
 ### Troubleshooting
