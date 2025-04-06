@@ -28,11 +28,9 @@ def dfs(state, visited, depth_limit, cancel_event=None, useless_count=0, max_use
         # Determine if the successor's last move is a tableau move and get its useless flag.
         move_is_useless = False
         if successor.moves and successor.moves[-1][0] == "to_tableau":
-            # We expect the tableau move tuple to have an extra flag at index 5.
             if len(successor.moves[-1]) >= 6:
                 move_is_useless = successor.moves[-1][5]
 
-        # Compute new_useless based on improvement and the useless flag.
         if new_h < current_h:
             new_useless = 0
         else:
@@ -113,7 +111,7 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
 
     for successor in ordered_successors:
         if successor.moves and successor.moves[-1][0] == "to_tableau":
-            move_is_useless = successor.moves[-1][5]  # This flag is set in get_successors
+            move_is_useless = successor.moves[-1][5] 
             new_useless = useless_count + 1 if move_is_useless else 0
         else:
             # For non-tableau moves (like to_foundation moves), assume they’re beneficial.

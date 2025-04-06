@@ -116,6 +116,6 @@ def improved_heuristic(state):
         sequence_bonus * 1.5 +
         empty_column_bonus +
         immovable_penalty +
-        -foundation_progress * 5  # Greater reward
+        -foundation_progress * 5 
     )
     return heuristic_value
