@@ -26,11 +26,11 @@ class WeightedAStarSolver:
         while open_set:
             if cancel_event and cancel_event.is_set():
                 print("Search cancelled")
-                return None
+                return None, self.nodes_expanded
                 
             if self.nodes_expanded >= max_nodes:
                 print(f"Reached max nodes ({max_nodes})")
-                return None
+                return None, self.nodes_expanded
                 
             current_f, _, current_state = heapq.heappop(open_set)
             open_set_hash.remove(repr(current_state))
@@ -50,7 +50,7 @@ class WeightedAStarSolver:
                     path.append(current_state.moves[-1])
                     current_state = came_from[repr(current_state)]
                 path.reverse()
-                return path
+                return path, self.nodes_expanded
                 
             for neighbor in current_state.get_successors():
                 neighbor_repr = repr(neighbor)
@@ -67,7 +67,7 @@ class WeightedAStarSolver:
                         open_set_hash.add(neighbor_repr)
                         
         print("No solution found - open set exhausted")
-        return None
+        return None, self.nodes_expanded
     
 def improved_heuristic(state):
     remaining_cards = 0

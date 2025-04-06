@@ -284,12 +284,12 @@ def write_solution_to_file(filename, moves, time_taken, memory_used):
 # --- DFS Integration ---
 def run_dfs_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, nodes_expanded = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    solution, nodes_expanded = dfs(initial_state, set(), depth_limit, cancel_event, 0, max_useless, [0])
     return solution, nodes_expanded
 
 def run_dfs_improved_solver(tableau, foundations, depth_limit, cancel_event=None, max_useless=MAX_USELESS_MOVES):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution, nodes_expanded = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless)
+    solution, nodes_expanded = dfs_improved(initial_state, set(), depth_limit, cancel_event, 0, max_useless, [0])
     return solution, nodes_expanded
 
 
@@ -306,8 +306,8 @@ def run_itd_solver(tableau, foundations, depth_limit, cancel_event=None, max_use
 # --- Greedy Integration ---
 def run_greedy_solver(tableau, foundations, cancel_event=None):
     initial_state = SolitaireState(copy.deepcopy(tableau), copy.deepcopy(foundations))
-    solution = greedy(initial_state, set(), cancel_event=cancel_event)
-    return solution
+    solution, nodes_expanded = greedy(initial_state, set(), cancel_event=cancel_event)
+    return solution, nodes_expanded
 
 # --- AI and Human Game Loops & Menus ---
 def compute_ai_move(tableau, foundations, algorithm, visited):

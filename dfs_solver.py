@@ -124,7 +124,7 @@ def dfs_improved(state, visited, depth_limit, cancel_event=None, useless_count=0
         if new_useless >= max_useless:
             continue
         result, returned_counter = dfs_improved(successor, visited, depth_limit - 1,
-                                                  cancel_event, new_useless, max_useless, counter)
+                                                  cancel_event, new_useless, max_useless, [0])
         total_states += returned_counter
         if result is not None:
             counter[0] += total_states
