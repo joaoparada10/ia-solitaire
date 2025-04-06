@@ -10,6 +10,7 @@ from weighted_astar_solver import WeightedAStarSolver
 from greedy import greedy, greedy_real_time
 from class_solitaire_state import SolitaireState
 from iterative_deepening_solver import iterative_deepening
+from constants import TEXT_COLOR, BACKGROUND_COLOR
 import threading
 dfs_cancel_event = threading.Event()
 
@@ -983,21 +984,26 @@ def ai_game_loop(algorithm, difficulty, game_duration, display_mode, max_useless
 def main_menu():
     menu_running = True
     buttons = {
-        "Play": pygame.Rect(WIDTH//2 - 100, 200, 200, 50),
-        "Options": pygame.Rect(WIDTH//2 - 100, 270, 200, 50),
-        "Help": pygame.Rect(WIDTH//2 - 100, 340, 200, 50),
-        "Exit": pygame.Rect(WIDTH//2 - 100, 410, 200, 50)
+        "Play": pygame.Rect(WIDTH//2 - 100, 250, 200, 50), 
+        "Help": pygame.Rect(WIDTH//2 - 100, 350, 200, 50),  
+        "Exit": pygame.Rect(WIDTH//2 - 100, 450, 200, 50)   
     }
+    
     while menu_running:
         screen.fill(BACKGROUND_COLOR)
+        
+        # Draw buttons
         for text, rect in buttons.items():
             mouse_pos = pygame.mouse.get_pos()
             color = BUTTON_HOVER_COLOR if rect.collidepoint(mouse_pos) else BUTTON_COLOR
             pygame.draw.rect(screen, color, rect)
+            
             label = font.render(text, True, TEXT_COLOR)
             label_rect = label.get_rect(center=rect.center)
             screen.blit(label, label_rect)
+        
         pygame.display.flip()
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -1007,45 +1013,67 @@ def main_menu():
                     if rect.collidepoint(event.pos):
                         if text == "Play":
                             player_mode_menu()
-                        elif text == "Options":
-                            options_menu()
                         elif text == "Help":
                             help_menu()
                         elif text == "Exit":
                             pygame.quit()
                             sys.exit()
-def options_menu():
-    options_running = True
-    while options_running:
-        screen.fill(BACKGROUND_COLOR)
-        # TODO 
-        label = font.render("Options (Press any key to return)", True, TEXT_COLOR)
-        screen.blit(label, (WIDTH//2 - label.get_width()//2, HEIGHT//2))
-        pygame.display.flip()
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                sys.exit()
-            elif event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                options_running = False
 
 def help_menu():
     help_running = True
+  
+    title_color = TEXT_COLOR 
+    text_color = TEXT_COLOR
+    background_color = BACKGROUND_COLOR
+    
+    title_font = pygame.font.SysFont('Arial', 34)
+    text_font = pygame.font.SysFont('Arial', 24)
+    
+    sections = [
+        ["Welcome to Baker's Dozen Solitaire:"],
+         
+        ["How to Play:",
+         "• Build foundations up in suit from Ace to King",
+         "• Tableau builds down regardless of suit",
+         "• Move only one card at a time",
+         "• Empty spaces cannot be filled"],
+         
+        ["Game Modes:",
+         "• Human Mode: Play with AI hints",
+         "• AI Mode: Available Algorithms:",
+         "  - Simple",
+         "  - Random",
+         "  - DFS & DFS Improved",
+         "  - Iterative Deepening",
+         "  - Greedy",
+         "  - A*",
+         "  - Weighted A*",
+         "• Customize deal size/difficulty/time limit"],
+         
+        ["Press any key to return"]
+    ]
+    
     while help_running:
-        screen.fill(BACKGROUND_COLOR)
-        lines = [
-            "Help:",
-            "Build the four foundation piles up in Suit from Ace to King.",
-            "Cards on the tableau are built down regardless of suit.",
-            "You can move only one card at a time.",
-            "Empty spaces cannot be filled.",
-            "Press any key to return."
-        ]
-        y_offset = 100 
-        for line in lines:
-            label = small_font.render(line, True, TEXT_COLOR)
-            screen.blit(label, (50, y_offset)) 
+        screen.fill(background_color)
+        y_offset = 80
+        
+        for section in sections:
+            if section[0].endswith(':'):
+                label = title_font.render(section[0], True, title_color)
+                screen.blit(label, (50, y_offset))
+                y_offset += 40
+                start_idx = 1
+            else:
+                start_idx = 0
+            for line in section[start_idx:]:
+                label = text_font.render(line, True, text_color)
+                screen.blit(label, (70 if line.startswith(('•', '-')) else 50, y_offset))
+                y_offset += 30
+            
+            y_offset += 15  
+        
         pygame.display.flip()
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -1092,82 +1120,92 @@ def human_options_menu(tableau=None):
     options_running = True
     difficulty = 13
     duration = 12
-    diff_rect_decr = pygame.Rect(WIDTH//2 - 150, 250, 50, 40)
-    diff_rect_incr = pygame.Rect(WIDTH//2 + 100, 250, 50, 40)
-    duration_rect_decr = pygame.Rect(WIDTH//2 - 150, 310, 50, 40)
-    duration_rect_incr = pygame.Rect(WIDTH//2 + 100, 310, 50, 40)
-    start_rect = pygame.Rect(WIDTH//2 - 100, 370, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 510, 200, 50)
-    read_from_file_rect = pygame.Rect(WIDTH//2 - 100, 440, 200, 50)
+
+    # Centered control rectangles 
+    control_width = 200
+    button_width = 200
+    side_button_width = 50
+
+    # Difficulty controls 
+    diff_rect_decr = pygame.Rect(WIDTH//2 - control_width//2 - side_button_width, 250, side_button_width, 40)
+    diff_rect_incr = pygame.Rect(WIDTH//2 + control_width//2, 250, side_button_width, 40)
+    diff_center_rect = pygame.Rect(WIDTH//2 - control_width//2, 250, control_width, 40)
+
+    # Duration controls 
+    duration_rect_decr = pygame.Rect(WIDTH//2 - control_width//2 - side_button_width, 310, side_button_width, 40)
+    duration_rect_incr = pygame.Rect(WIDTH//2 + control_width//2, 310, side_button_width, 40)
+    duration_center_rect = pygame.Rect(WIDTH//2 - control_width//2, 310, control_width, 40)
+
+    # Action buttons 
+    start_rect = pygame.Rect(WIDTH//2 - button_width//2, 370, button_width, 50)          
+    read_from_file_rect = pygame.Rect(WIDTH//2 - button_width//2, 440, button_width, 50) 
+    return_rect = pygame.Rect(WIDTH//2 - button_width//2, 510, button_width, 50)        
+
     while options_running:
         screen.fill(BACKGROUND_COLOR)
+
+        # Title
         title = font.render("Human Options", True, TEXT_COLOR)
         screen.blit(title, (WIDTH//2 - title.get_width()//2, 180))
-        if tableau == None:
+
+        # Difficulty selector
+        if tableau is None:
             diff_text = font.render(f"Cards per Suit: {difficulty}", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
-            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_center_rect)
+            screen.blit(diff_text, (diff_center_rect.centerx - diff_text.get_width()//2, diff_center_rect.centery - diff_text.get_height()//2))
 
-            diff_decr_text = font.render("-", True, TEXT_COLOR)
+            # +/- buttons
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_decr)
-            screen.blit(diff_decr_text, (diff_rect_decr.x + 15, diff_rect_decr.y + 5))
+            screen.blit(font.render("-", True, TEXT_COLOR), (diff_rect_decr.centerx - 5, diff_rect_decr.centery - 10))
 
-            diff_incr_text = font.render("+", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_rect_incr)
-            screen.blit(diff_incr_text, (diff_rect_incr.x + 15, diff_rect_incr.y + 5))
+            screen.blit(font.render("+", True, TEXT_COLOR), (diff_rect_incr.centerx - 5, diff_rect_incr.centery - 10))
         else:
-            diff_text = font.render(f"Deck already chosen!", True, TEXT_COLOR)
-            pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 250, 200, 40))
-            screen.blit(diff_text, (WIDTH//2 - diff_text.get_width()//2, 255))
-        
+            diff_text = font.render("Deck already chosen!", True, TEXT_COLOR)
+            pygame.draw.rect(screen, BUTTON_COLOR, diff_center_rect)
+            screen.blit(diff_text, (diff_center_rect.centerx - diff_text.get_width()//2, diff_center_rect.centery - diff_text.get_height()//2))
+
+        # Duration selector 
         duration_text = font.render(f"Duration (min): {duration}", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, pygame.Rect(WIDTH//2 - 100, 310, 200, 40))
-        screen.blit(duration_text, (WIDTH//2 - duration_text.get_width()//2, 315))
+        pygame.draw.rect(screen, BUTTON_COLOR, duration_center_rect)
+        screen.blit(duration_text, (duration_center_rect.centerx - duration_text.get_width()//2, duration_center_rect.centery - duration_text.get_height()//2))
 
-        duration_decr_text = font.render("-", True, TEXT_COLOR)
+        # Duration +/- buttons
         pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_decr)
-        screen.blit(duration_decr_text, (duration_rect_decr.x + 15, duration_rect_decr.y + 5))
+        screen.blit(font.render("-", True, TEXT_COLOR), (duration_rect_decr.centerx - 5, duration_rect_decr.centery - 10))
 
-        duration_incr_text = font.render("+", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, duration_rect_incr)
-        screen.blit(duration_incr_text, (duration_rect_incr.x + 15, duration_rect_incr.y + 5))
+        screen.blit(font.render("+", True, TEXT_COLOR), (duration_rect_incr.centerx - 5, duration_rect_incr.centery - 10))
 
-        start_text = font.render("Start Game", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, start_rect)
-        screen.blit(start_text, (start_rect.x + 10, start_rect.y + 5))
-
-        return_text = font.render("Return", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, return_rect)
-        screen.blit(return_text, (return_rect.x + 10, return_rect.y + 5))
-
-        read_file_text = font.render("Read from File", True, TEXT_COLOR)
-        pygame.draw.rect(screen, BUTTON_COLOR, read_from_file_rect)
-        screen.blit(read_file_text, (read_from_file_rect.x + 10, read_from_file_rect.y + 5))
+        # Action buttons 
+        for rect, text in [
+            (start_rect, "Start Game"),
+            (read_from_file_rect, "Read from File"),
+            (return_rect, "Return")
+        ]:
+            pygame.draw.rect(screen, BUTTON_COLOR, rect)
+            text_surface = font.render(text, True, TEXT_COLOR)
+            screen.blit(text_surface, (rect.centerx - text_surface.get_width()//2, rect.centery - text_surface.get_height()//2))
 
         pygame.display.flip()
+
+        # Event handling 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if diff_rect_decr.collidepoint(event.pos):
-                    if difficulty > 4:
-                        difficulty -= 1
-                elif diff_rect_incr.collidepoint(event.pos):
-                    if difficulty < 13:
-                        difficulty += 1
+                if diff_rect_decr.collidepoint(event.pos) and tableau is None:
+                    difficulty = max(4, difficulty - 1)
+                elif diff_rect_incr.collidepoint(event.pos) and tableau is None:
+                    difficulty = min(13, difficulty + 1)
                 elif duration_rect_decr.collidepoint(event.pos):
-                    if duration > 1:
-                        duration -= 1
+                    duration = max(1, duration - 1)
                 elif duration_rect_incr.collidepoint(event.pos):
                     duration += 1
                 elif start_rect.collidepoint(event.pos):
                     options_running = False
-                    if tableau != None:
-                        difficulty = len(tableau)
-                        game_loop(difficulty, duration,tableau)
-                    else: 
-                        game_loop(difficulty, duration,tableau)
+                    game_loop(difficulty, duration, tableau)
                 elif return_rect.collidepoint(event.pos):
                     options_running = False
                     main_menu()
@@ -1219,41 +1257,46 @@ def ai_options_menu(tableau=None):
                 value = max_val
         return value
 
-    # Define control rectangles (using a consistent layout)
-    algo_rect   = pygame.Rect(WIDTH//2 - 150, 200, 300, 40)
-    
-    # Difficulty (if deck not already chosen)
-    diff_center = pygame.Rect(WIDTH//2 - 100, 260, 200, 40)
-    diff_minus  = pygame.Rect(WIDTH//2 - 150, 260, 50, 40)
-    diff_plus   = pygame.Rect(WIDTH//2 + 100, 260, 50, 40)
-    
+    # Define control rectangles
+    button_width = 450  # Main control width (matches display_rect)
+    side_width = 50     # Width of +/- buttons
+    spacing = 60        # Vertical spacing between sections
+
+    # Algorithm selection 
+    algo_rect = pygame.Rect(WIDTH//2 - button_width//2, 200, button_width, 40)
+
+    # Difficulty control
+    diff_center = pygame.Rect(WIDTH//2 - button_width//2, 260, button_width, 40)
+    diff_minus = pygame.Rect(diff_center.left - side_width, 260, side_width, 40)
+    diff_plus = pygame.Rect(diff_center.right, 260, side_width, 40)
+
     # Duration control
-    dur_center  = pygame.Rect(WIDTH//2 - 100, 320, 200, 40)
-    dur_minus   = pygame.Rect(WIDTH//2 - 150, 320, 50, 40)
-    dur_plus    = pygame.Rect(WIDTH//2 + 100, 320, 50, 40)
-    
-    # For DFS and Iterative Deepening: max_useless control
-    mu_center   = pygame.Rect(WIDTH//2 - 100, 380, 200, 40)
-    mu_minus    = pygame.Rect(WIDTH//2 - 150, 380, 50, 40)
-    mu_plus     = pygame.Rect(WIDTH//2 + 100, 380, 50, 40)
-    
-    # New: Depth limit control for DFS/Iterative Deepening
-    dl_center   = pygame.Rect(WIDTH//2 - 100, 440, 200, 40)
-    dl_minus    = pygame.Rect(WIDTH//2 - 150, 440, 50, 40)
-    dl_plus     = pygame.Rect(WIDTH//2 + 100, 440, 50, 40)
-    
-    # Display mode toggle
-    display_rect = pygame.Rect(WIDTH//2 - 150, 500, 300, 40)
-    
-    # For Weighted A*: weight control
-    weight_center = pygame.Rect(WIDTH//2 - 100, 560, 200, 40)
-    weight_minus  = pygame.Rect(WIDTH//2 - 150, 560, 50, 40)
-    weight_plus   = pygame.Rect(WIDTH//2 + 100, 560, 50, 40)
-    
-    # Start and Return buttons
-    start_rect  = pygame.Rect(WIDTH//2 - 100, 620, 200, 50)
-    return_rect = pygame.Rect(WIDTH//2 - 100, 760, 200, 50)
-    read_from_file_rect = pygame.Rect(WIDTH//2 - 100, 690, 200, 50)
+    dur_center = pygame.Rect(WIDTH//2 - button_width//2, 260 + spacing, button_width, 40)
+    dur_minus = pygame.Rect(dur_center.left - side_width, 260 + spacing, side_width, 40)
+    dur_plus = pygame.Rect(dur_center.right, 260 + spacing, side_width, 40)
+
+    # Max useless control (for DFS/Iterative Deepening)
+    mu_center = pygame.Rect(WIDTH//2 - button_width//2, 260 + 2*spacing, button_width, 40)
+    mu_minus = pygame.Rect(mu_center.left - side_width, 260 + 2*spacing, side_width, 40)
+    mu_plus = pygame.Rect(mu_center.right, 260 + 2*spacing, side_width, 40)
+
+    # Depth limit control (for DFS/Iterative Deepening)
+    dl_center = pygame.Rect(WIDTH//2 - button_width//2, 260 + 3*spacing, button_width, 40)
+    dl_minus = pygame.Rect(dl_center.left - side_width, 260 + 3*spacing, side_width, 40)
+    dl_plus = pygame.Rect(dl_center.right, 260 + 3*spacing, side_width, 40)
+
+    # Display mode toggle 
+    display_rect = pygame.Rect(WIDTH//2 - button_width//2, 260 + 4*spacing, button_width, 40)
+
+    # Weight control (for Weighted A*)
+    weight_center = pygame.Rect(WIDTH//2 - button_width//2, 260 + 5*spacing, button_width, 40)
+    weight_minus = pygame.Rect(weight_center.left - side_width, 260 + 5*spacing, side_width, 40)
+    weight_plus = pygame.Rect(weight_center.right, 260 + 5*spacing, side_width, 40)
+
+    # Start, Return, and Read-from-file buttons
+    start_rect = pygame.Rect(WIDTH//2 - 100, 260 + 6*spacing, 200, 50)
+    read_from_file_rect = pygame.Rect(WIDTH//2 - 100, 260 + 7*spacing, 200, 50)
+    return_rect = pygame.Rect(WIDTH//2 - 100, 260 + 8*spacing, 200, 50)
     
     while options_running:
         screen.fill(BACKGROUND_COLOR)
@@ -1263,15 +1306,17 @@ def ai_options_menu(tableau=None):
         # Algorithm selection (clicking this rectangle cycles through algorithms)
         algo_text = font.render(f"Algorithm: {algorithm_options[algorithm_index]}", True, TEXT_COLOR)
         pygame.draw.rect(screen, BUTTON_COLOR, algo_rect)
-        screen.blit(algo_text, (algo_rect.x + 10, algo_rect.y + 5))
-        
+        screen.blit(algo_text, (algo_rect.x + (algo_rect.width - algo_text.get_width()) // 2,
+                        algo_rect.y + (algo_rect.height - algo_text.get_height()) // 2))
+
         # Difficulty selection (only if no deck has been chosen yet)
         if tableau is None:
             draw_numeric_control("Cards per Suit", difficulty, diff_center, diff_minus, diff_plus)
             
             read_file_text = font.render("Read from File", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, read_from_file_rect)
-            screen.blit(read_file_text, (read_from_file_rect.x + 10, read_from_file_rect.y + 5))
+            screen.blit(read_file_text, (read_from_file_rect.x + (read_from_file_rect.width - read_file_text.get_width()) // 2,
+                                read_from_file_rect.y + (read_from_file_rect.height - read_file_text.get_height()) // 2))
         else:
             diff_text = font.render("Deck already chosen!", True, TEXT_COLOR)
             pygame.draw.rect(screen, BUTTON_COLOR, diff_center)
