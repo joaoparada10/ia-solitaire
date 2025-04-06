@@ -238,7 +238,6 @@ for i in range(1,num_of_tests+1, 1):
         a_star_w2_moves += len(solution)
         a_star_w2_time += runtime
 
-
     #run Greedy
 
     """ start_time = time.time()

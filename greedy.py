@@ -25,6 +25,9 @@ def greedy(state, visited, cancel_event=None, counter=0):
     current_min = 100000
     next_state = None
 
+    if len(state.moves) == 970:
+        return None
+
     for successor in state.get_successors():
         state_repr_succ = represent_state(successor)
         if state_repr_succ in visited:
@@ -74,12 +77,45 @@ def heuristic(state):
     imbalance_penalty = 0
     buried_low_cards_penalty = 0
     empty_column_bonus = 0
+    #cicle_penalty = 0
 
     foundation_lengths = [len(pile) for pile in state.foundations.values()]
     rank_order = ['4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
     num_columns = len(state.tableau)
     blocking_rank = rank_order[num_columns - 4] if 4 <= num_columns <= 13 else None
+    '''
+    window = 20
+    to_tableau_counter = 0
 
+    if len(state.moves) >= 20:
+
+        recent_moves = state.moves[-window:]
+        moved_cards = set()
+
+        for move in recent_moves:
+            if move[0] == "to_tableau":
+                _, _, _, rank, suit, _ = move
+                moved_cards.add((rank, suit))
+                to_tableau_counter += 1
+
+        diversity_score = len(moved_cards)
+
+        # Penalize if there’s little diversity
+        # Example: if only 1 or 2 cards are being moved repeatedly
+
+        if to_tableau_counter < window:
+            cicle_penalty = 0
+        elif diversity_score == 1:
+            cicle_penalty = 15  # extreme stagnation
+        elif diversity_score == 2:
+            cicle_penalty = 10
+        elif diversity_score == 3:
+            cicle_penalty = 5
+        elif diversity_score == 4:
+            cicle_penalty = 1
+        else:
+            cicle_penalty = 0  # good diversity
+        '''
 
     # 3. Foundation progress: Encourages moving cards to foundations
 
@@ -158,6 +194,7 @@ def heuristic(state):
         + ace_on_foundation
         + buried_low_cards_penalty
         + empty_column_bonus
+        #+ cicle_penalty
     )
 
     return heuristic_value
