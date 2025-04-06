@@ -72,6 +72,7 @@ You can tweak the gameplay and AI behavior:
 - `weighted_astar_solver.py`: Weighted A* solver;
 - `greedy.py`: Greedy solver;
 - `iterative_deepening_solver.py`: Iterative Deepening solver;
+- `tests.py`: File containing performance measurements for AI algorithms;
 - `helpers.py`: Utility functions;
 - `png/`: Folder with all card images;
 - `initial.txt`: Text file containing an initial game state.
