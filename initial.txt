@@ -1,0 +1,11 @@
+Foundations:
+hearts: []
+diamonds: []
+clubs: []
+spades: []
+
+Tableau:
+Column 0: [spades4, spadesace, diamonds2, spades3]
+Column 1: [clubs4, diamonds3, clubsace, clubs3]
+Column 2: [diamonds4, diamondsace, spades2, hearts3]
+Column 3: [hearts4, hearts2, clubs2, heartsace]

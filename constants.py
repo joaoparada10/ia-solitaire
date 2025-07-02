@@ -1,0 +1,22 @@
+WIDTH = 1600
+HEIGHT = 800
+CARD_WIDTH = 80
+CARD_HEIGHT = 120  # (0,0) is the top-left of the card
+SPACING_X = 100
+SPACING_Y = 30
+FOUNDATION_Y = 20
+TABLEAU_Y = 180
+BACKGROUND_COLOR = (34, 139, 34)  # Green table
+CARD_COLOR = (255, 255, 255)
+BUTTON_COLOR = (70, 130, 180)
+BUTTON_HOVER_COLOR = (100, 149, 237)
+TEXT_COLOR = (255, 255, 255)
+DOUBLE_CLICK_THRESHOLD = 400  # milliseconds
+SCORE_INCREMENT = 50
+MAX_USELESS_MOVES = 50
+HINT_COLOR = (255, 255, 0)  # Yellow
+DEPTH_LIMIT = 500
+
+SUITS = ['hearts', 'diamonds', 'clubs', 'spades']
+RANKS = ['ace', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'jack', 'queen', 'king']
+RANK_VALUES = {rank: i for i, rank in enumerate(RANKS)}
